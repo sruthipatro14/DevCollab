@@ -18,6 +18,14 @@ async function request(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
+  // Token expired or invalid — clear session and bounce to login
+  if (res.status === 401) {
+    localStorage.removeItem("devcollab_token");
+    localStorage.removeItem("devcollabProfile");
+    window.location.href = "/";
+    return;
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;

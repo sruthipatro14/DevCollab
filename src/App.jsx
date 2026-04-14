@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { applicationStore } from "./store.js";
+import { useState, useEffect, useCallback } from "react";
 import { api, saveSession, clearSession } from "./api.js";
 import './App.css';
 
@@ -555,6 +554,46 @@ function EditProfileModal({ profile, onClose, onSave }) {
   );
 }
 
+// ── Toast Notification System ─────────────────────────────────────────────────
+function useToast() {
+  const [toasts, setToasts] = useState([]);
+
+  const push = useCallback((message, type = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3500);
+  }, []);
+
+  const dismiss = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  return { toasts, push, dismiss };
+}
+
+function ToastContainer({ toasts, dismiss }) {
+  if (!toasts.length) return null;
+  return (
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div
+          key={t.id}
+          className={`toast toast-${t.type}`}
+          onClick={() => dismiss(t.id)}
+        >
+          <span className="toast-icon">
+            {t.type === "success" ? "✓" : t.type === "error" ? "✕" : "ℹ"}
+          </span>
+          <span className="toast-message">{t.message}</span>
+          <button className="toast-close" onClick={() => dismiss(t.id)}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Project Details Modal ─────────────────────────────────────────────────────
 function ProjectDetailsModal({ project, applications, onClose, onApply }) {
   const isFaculty = project.type === "faculty";
@@ -671,49 +710,132 @@ function NotificationsModal({ notifications, onClose }) {
 // ── Student Dashboard ──────────────────────────────────────────────────────────
 function StudentDashboard({ profile, saveProfile }) {
   const [activePage, setActivePage] = useState("Dashboard");
-  const [applications, setApplications] = useState(applicationStore.applications);
-  const [projects, setProjects] = useState(applicationStore.projects);
+  const [applications, setApplications] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editProfile, setEditProfile] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [viewProject, setViewProject] = useState(null);
+  const { toasts, push: pushToast, dismiss: dismissToast } = useToast();
 
-  const currentUserName = profile.name || "User";
+  const currentUserName  = profile.name  || "User";
   const currentUserEmail = profile.email || "";
 
-  const applyToProject = (app) => {
-    console.log("Applying to project:", app);
-    const updated = [...applicationStore.applications, app];
-    applicationStore.applications = updated;
-    setApplications(updated);
+  // ── Load all data from backend ─────────────────────────────────
+  const fetchData = useCallback(async () => {
+    try {
+      setError(null);
+      const [apps, projs] = await Promise.all([
+        api.applications.getAll(),
+        api.projects.getAll(),
+      ]);
+      setApplications(apps);
+      setProjects(projs);
+    } catch (err) {
+      setError(err.message || "Failed to load data. Please refresh the page.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Student submits an application ────────────────────────────
+  const applyToProject = async (app) => {
+    setSaving(true);
+    try {
+      await api.applications.submit({
+        projectId:  app.projectId,
+        skills:     app.skills,
+        resumeLink: app.resume,
+        message:    app.message,
+      });
+      await fetchData();
+      pushToast("Application submitted successfully!", "success");
+    } catch (err) {
+      pushToast(err.message || "Failed to submit application", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const createStudentProject = (project) => {
-    console.log("Creating student project:", project);
-    const updated = [...applicationStore.projects, project];
-    applicationStore.projects = updated;
-    setProjects(updated);
-    setShowCreateModal(false);
+  // ── Student creates a collaboration project ────────────────────
+  const createStudentProject = async (project) => {
+    setSaving(true);
+    try {
+      const created = await api.projects.create(project);
+      await fetchData();
+      setShowCreateModal(false);
+      pushToast(`Project "${created.title}" created!`, "success");
+    } catch (err) {
+      pushToast(err.message || "Failed to create project", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleApplicantResponse = (appIndex, status) => {
-    const updated = [...applicationStore.applications];
-    updated[appIndex] = { ...updated[appIndex], status };
-    applicationStore.applications = updated;
-    setApplications([...updated]);
+  // ── Student-project owner accepts/rejects applicants ──────────
+  const handleApplicantResponse = async (appId, status) => {
+    setSaving(true);
+    try {
+      await api.applications.update(appId, { status });
+      await fetchData();
+      pushToast(
+        `Application ${status.toLowerCase()}`,
+        status === "Accepted" ? "success" : "info"
+      );
+    } catch (err) {
+      pushToast(err.message || "Failed to update application", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const myApps = applications.filter((_, i) => i >= 0);
-  const myStudentProjects = projects.filter(p => p.type === "student" && p.ownerName === currentUserName);
-  const applicantsForMyProjects = applications.filter(app => 
+  const myStudentProjects       = projects.filter(p => p.type === "student" && p.ownerName === currentUserName);
+  const applicantsForMyProjects = applications.filter(app =>
     myStudentProjects.some(p => p.id === app.projectId)
+  );
+
+  // ── Loading / error guards ─────────────────────────────────────
+  if (loading) return (
+    <div className="app-layout">
+      <Sidebar role="student" activePage={activePage} setActivePage={setActivePage} />
+      <main className="main-content">
+        <div className="dashboard-loading">
+          <div className="loading-spinner" />
+          <p>Loading your dashboard…</p>
+        </div>
+      </main>
+    </div>
+  );
+
+  if (error && !applications.length && !projects.length) return (
+    <div className="app-layout">
+      <Sidebar role="student" activePage={activePage} setActivePage={setActivePage} />
+      <main className="main-content">
+        <div className="dashboard-error">
+          <span className="error-icon">⚠️</span>
+          <h3>Something went wrong</h3>
+          <p>{error}</p>
+          <button className="btn-primary" onClick={fetchData}>Try again</button>
+        </div>
+      </main>
+    </div>
   );
 
   return (
     <div className="app-layout">
       <Sidebar role="student" activePage={activePage} setActivePage={setActivePage} />
       <main className="main-content">
+        {error && (
+          <div className="error-toast" onClick={() => setError(null)}>
+            ⚠️ {error} <span className="error-toast-close">✕</span>
+          </div>
+        )}
 
         {/* ── Dashboard Page ── */}
         {activePage === "Dashboard" && (
@@ -735,8 +857,8 @@ function StudentDashboard({ profile, saveProfile }) {
             </div>
             <div className="stats-grid">
               <div className="stat-card accent-indigo"><span className="stat-val">{projects.length}</span><span className="stat-lbl">Open Projects</span></div>
-              <div className="stat-card accent-amber"><span className="stat-val">{myApps.length}</span><span className="stat-lbl">My Applications</span></div>
-              <div className="stat-card accent-teal"><span className="stat-val">{myApps.filter(a => a.status === "Accepted").length}</span><span className="stat-lbl">Accepted</span></div>
+              <div className="stat-card accent-amber"><span className="stat-val">{applications.length}</span><span className="stat-lbl">My Applications</span></div>
+              <div className="stat-card accent-teal"><span className="stat-val">{applications.filter(a => a.status === "Accepted").length}</span><span className="stat-lbl">Accepted</span></div>
               <div className="stat-card accent-green"><span className="stat-val">{myStudentProjects.length}</span><span className="stat-lbl">My Collaborations</span></div>
             </div>
             <div className="section-header">
@@ -747,12 +869,16 @@ function StudentDashboard({ profile, saveProfile }) {
               </div>
             </div>
             <div className="cards-grid">
-              {projects.slice(0, 3).map((p) => {
-                console.log("Dashboard project:", p);
+              {projects.length === 0 ? (
+                <div className="empty-state" style={{ gridColumn: "1/-1" }}>
+                  <div className="empty-icon">📂</div>
+                  <h3>No projects available</h3>
+                  <p>Check back soon for new opportunities</p>
+                </div>
+              ) : projects.slice(0, 3).map((p) => {
                 const alreadyApplied = applications.some(a => a.projectId === p.id);
                 const isFacultyProject = p.type === "faculty";
                 const isOwnProject = p.ownerName && p.ownerName === currentUserName;
-                
                 return (
                   <div className="p-card" key={p.id} onClick={() => setViewProject(p)}>
                     <div className={`p-tag ${isFacultyProject ? "tag-indigo" : "tag-teal"}`}>
@@ -768,10 +894,11 @@ function StudentDashboard({ profile, saveProfile }) {
                       <span className="applied-badge">✓ Applied</span>
                     )}
                     {!isOwnProject && !alreadyApplied && (
-                      <button className="btn-apply" onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedProject(p);
-                      }}>Apply Now →</button>
+                      <button
+                        className="btn-apply"
+                        disabled={saving}
+                        onClick={(e) => { e.stopPropagation(); setSelectedProject(p); }}
+                      >Apply Now →</button>
                     )}
                   </div>
                 );
@@ -790,12 +917,17 @@ function StudentDashboard({ profile, saveProfile }) {
               </div>
             </div>
             <div className="projects-list">
-              {projects.map((p) => {
+              {projects.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">🔍</div>
+                  <h3>No projects available</h3>
+                  <p>Check back soon for new opportunities</p>
+                </div>
+              ) : projects.map((p) => {
                 const alreadyApplied = applications.some(a => a.projectId === p.id);
                 const isFacultyProject = p.type === "faculty";
                 const isOwnProject = p.ownerName && p.ownerName === currentUserName;
                 const projectApplicants = applications.filter(a => a.projectId === p.id);
-                
                 return (
                   <div className="project-row" key={p.id} onClick={() => setViewProject(p)}>
                     <div className="project-row-left">
@@ -826,14 +958,14 @@ function StudentDashboard({ profile, saveProfile }) {
                         <button className="btn-ghost-secondary" onClick={(e) => { e.stopPropagation(); setActivePage("My Collaborations"); }}>
                           Manage →
                         </button>
-                      ) : isFacultyProject ? (
-                        alreadyApplied
-                          ? <span className="applied-badge">✓ Applied</span>
-                          : <button className="btn-apply" onClick={(e) => { e.stopPropagation(); setSelectedProject(p); }}>Apply Now →</button>
+                      ) : alreadyApplied ? (
+                        <span className="applied-badge">✓ Applied</span>
                       ) : (
-                        alreadyApplied
-                          ? <span className="applied-badge">✓ Applied</span>
-                          : <button className="btn-apply" onClick={(e) => { e.stopPropagation(); setSelectedProject(p); }}>Apply Now →</button>
+                        <button
+                          className="btn-apply"
+                          disabled={saving}
+                          onClick={(e) => { e.stopPropagation(); setSelectedProject(p); }}
+                        >Apply Now →</button>
                       )}
                     </div>
                   </div>
@@ -971,21 +1103,15 @@ function StudentDashboard({ profile, saveProfile }) {
 
                               {app.status === "Pending" && (
                                 <div className="fac-app-actions">
-                                  <button 
-                                    className="btn-accept" 
-                                    onClick={() => {
-                                      const appIndex = applications.indexOf(app);
-                                      handleApplicantResponse(appIndex, "Accepted");
-                                    }}
+                                  <button
+                                    className="btn-accept"
+                                    onClick={() => handleApplicantResponse(app.id, "Accepted")}
                                   >
                                     ✓ Accept
                                   </button>
-                                  <button 
-                                    className="btn-reject" 
-                                    onClick={() => {
-                                      const appIndex = applications.indexOf(app);
-                                      handleApplicantResponse(appIndex, "Rejected");
-                                    }}
+                                  <button
+                                    className="btn-reject"
+                                    onClick={() => handleApplicantResponse(app.id, "Rejected")}
                                   >
                                     ✕ Reject
                                   </button>
@@ -1256,6 +1382,7 @@ function StudentDashboard({ profile, saveProfile }) {
           onClose={() => setShowNotifications(false)}
         />
       )}
+      <ToastContainer toasts={toasts} dismiss={dismissToast} />
     </div>
   );
 }
@@ -1263,39 +1390,138 @@ function StudentDashboard({ profile, saveProfile }) {
 // ── Faculty Dashboard ──────────────────────────────────────────────────────────
 function FacultyDashboard({ profile, saveProfile }) {
   const [activePage, setActivePage] = useState("Dashboard");
-  const [applications, setApplications] = useState(applicationStore.applications);
-  const [projects, setProjects] = useState(applicationStore.projects.filter(p => p.type === "faculty"));
+  const [applications, setApplications] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const currentUserName = profile.name || "Faculty";
+  const currentUserName  = profile.name  || "Faculty";
   const currentUserEmail = profile.email || "";
 
   const [editProfile, setEditProfile] = useState(false);
+  const { toasts, push: pushToast, dismiss: dismissToast } = useToast();
 
-  const updateStatus = (index, status) => {
-    const updated = [...applicationStore.applications];
-    updated[index] = { ...updated[index], status };
-    applicationStore.applications = updated;
-    setApplications([...updated]);
+  // ── Load all data from backend ─────────────────────────────────
+  const fetchData = useCallback(async () => {
+    try {
+      setError(null);
+      const [apps, projs] = await Promise.all([
+        api.applications.getAll(),
+        api.projects.getAll(),
+      ]);
+      setApplications(apps);
+      setProjects(projs.filter(p => p.type === "faculty"));
+    } catch (err) {
+      setError(err.message || "Failed to load data. Please refresh the page.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Accept / Reject an application ────────────────────────────
+  const updateStatus = async (appId, status) => {
+    setSaving(true);
+    try {
+      await api.applications.update(appId, { status });
+      await fetchData();
+      pushToast(
+        `Application ${status.toLowerCase()}`,
+        status === "Accepted" ? "success" : status === "Rejected" ? "error" : "info"
+      );
+    } catch (err) {
+      pushToast(err.message || "Failed to update application", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const refresh = () => {
-    setApplications([...applicationStore.applications]);
-    setProjects(applicationStore.projects.filter(p => p.type === "faculty"));
+  // ── Update grade fields (rating / feedback / skillsGained) ────
+  const updateGrade = async (appId, field, value) => {
+    try {
+      await api.applications.update(appId, { [field]: value });
+      await fetchData();
+      pushToast("Grade saved", "success");
+    } catch (err) {
+      pushToast(err.message || "Failed to save grade", "error");
+    }
   };
 
-  const createProject = (project) => {
-    console.log("Creating faculty project:", project);
-    const updated = [...applicationStore.projects, project];
-    applicationStore.projects = updated;
-    setProjects(updated.filter(p => p.type === "faculty"));
-    setShowCreateModal(false);
+  // ── Create a new faculty project ──────────────────────────────
+  const createProject = async (project) => {
+    setSaving(true);
+    try {
+      const created = await api.projects.create(project);
+      await fetchData();
+      setShowCreateModal(false);
+      pushToast(`Project "${created.title}" created!`, "success");
+    } catch (err) {
+      pushToast(err.message || "Failed to create project", "error");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  // ── Delete a faculty project ───────────────────────────────────
+  const deleteProject = async (project) => {
+    const appCount = applications.filter(a => a.projectId === project.id).length;
+    const warning  = appCount > 0
+      ? `"${project.title}" has ${appCount} application${appCount !== 1 ? "s" : ""}. Deleting it will remove all associated data. Continue?`
+      : `Delete "${project.title}"? This cannot be undone.`;
+
+    if (!window.confirm(warning)) return;
+
+    setSaving(true);
+    try {
+      await api.projects.remove(project.id);
+      await fetchData();
+      pushToast(`"${project.title}" deleted`, "info");
+    } catch (err) {
+      pushToast(err.message || "Failed to delete project", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Loading / error guards ─────────────────────────────────────
+  if (loading) return (
+    <div className="app-layout">
+      <Sidebar role="faculty" activePage={activePage} setActivePage={setActivePage} />
+      <main className="main-content">
+        <div className="dashboard-loading">
+          <div className="loading-spinner" />
+          <p>Loading your dashboard…</p>
+        </div>
+      </main>
+    </div>
+  );
+
+  if (error && !applications.length && !projects.length) return (
+    <div className="app-layout">
+      <Sidebar role="faculty" activePage={activePage} setActivePage={setActivePage} />
+      <main className="main-content">
+        <div className="dashboard-error">
+          <span className="error-icon">⚠️</span>
+          <h3>Something went wrong</h3>
+          <p>{error}</p>
+          <button className="btn-primary" onClick={fetchData}>Try again</button>
+        </div>
+      </main>
+    </div>
+  );
 
   return (
     <div className="app-layout">
-      <Sidebar role="faculty" activePage={activePage} setActivePage={(p) => { setActivePage(p); refresh(); }} />
+      <Sidebar role="faculty" activePage={activePage} setActivePage={setActivePage} />
       <main className="main-content">
+        {error && (
+          <div className="error-toast" onClick={() => setError(null)}>
+            ⚠️ {error} <span className="error-toast-close">✕</span>
+          </div>
+        )}
 
         {/* ── Dashboard Page ── */}
         {activePage === "Dashboard" && (
@@ -1323,7 +1549,7 @@ function FacultyDashboard({ profile, saveProfile }) {
             </div>
             <div className="section-header">
               <h2 className="section-title">Recent Applications</h2>
-              <button className="btn-primary" onClick={() => { setActivePage("Applications"); refresh(); }}>View All →</button>
+              <button className="btn-primary" onClick={() => setActivePage("Applications")}>View All →</button>
             </div>
             {applications.length === 0 ? (
               <div className="empty-state">
@@ -1407,8 +1633,8 @@ function FacultyDashboard({ profile, saveProfile }) {
 
                     {app.status === "Pending" && (
                       <div className="fac-app-actions">
-                        <button className="btn-accept" onClick={() => updateStatus(i, "Accepted")}>✓ Accept</button>
-                        <button className="btn-reject" onClick={() => updateStatus(i, "Rejected")}>✕ Reject</button>
+                        <button className="btn-accept" disabled={saving} onClick={() => updateStatus(app.id, "Accepted")}>✓ Accept</button>
+                        <button className="btn-reject" disabled={saving} onClick={() => updateStatus(app.id, "Rejected")}>✕ Reject</button>
                       </div>
                     )}
 
@@ -1426,12 +1652,7 @@ function FacultyDashboard({ profile, saveProfile }) {
                               step="0.5"
                               placeholder="e.g. 4.5"
                               defaultValue={app.rating || ""}
-                              onChange={(e) => {
-                                const updated = [...applicationStore.applications];
-                                updated[i] = { ...updated[i], rating: e.target.value };
-                                applicationStore.applications = updated;
-                                setApplications([...updated]);
-                              }}
+                              onBlur={(e) => updateGrade(app.id, "rating", e.target.value)}
                             />
                           </div>
                           <div className="grade-input-wrap grade-input-grow">
@@ -1440,12 +1661,7 @@ function FacultyDashboard({ profile, saveProfile }) {
                               className="grade-input"
                               placeholder="e.g. Python, ML, React"
                               defaultValue={app.skillsGained || ""}
-                              onChange={(e) => {
-                                const updated = [...applicationStore.applications];
-                                updated[i] = { ...updated[i], skillsGained: e.target.value };
-                                applicationStore.applications = updated;
-                                setApplications([...updated]);
-                              }}
+                              onBlur={(e) => updateGrade(app.id, "skillsGained", e.target.value)}
                             />
                           </div>
                         </div>
@@ -1455,12 +1671,7 @@ function FacultyDashboard({ profile, saveProfile }) {
                             className="grade-input"
                             placeholder="e.g. Great work on the ML models, showed strong initiative"
                             defaultValue={app.feedback || ""}
-                            onChange={(e) => {
-                              const updated = [...applicationStore.applications];
-                              updated[i] = { ...updated[i], feedback: e.target.value };
-                              applicationStore.applications = updated;
-                              setApplications([...updated]);
-                            }}
+                            onBlur={(e) => updateGrade(app.id, "feedback", e.target.value)}
                           />
                         </div>
                       </div>
@@ -1483,11 +1694,28 @@ function FacultyDashboard({ profile, saveProfile }) {
               <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Add Project</button>
             </div>
             <div className="cards-grid">
-              {projects.map((p) => (
+              {projects.length === 0 ? (
+                <div className="empty-state" style={{ gridColumn: "1/-1" }}>
+                  <div className="empty-icon">📂</div>
+                  <h3>No projects yet</h3>
+                  <p>Create your first project to start receiving applications</p>
+                  <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Add Project</button>
+                </div>
+              ) : projects.map((p) => (
                 <div className="p-card" key={p.id}>
-                  <div className="p-tag tag-indigo">{p.skills.split(",")[0]}</div>
+                  <div className="p-card-top-row">
+                    <div className="p-tag tag-indigo">{p.skills.split(",")[0]}</div>
+                    <button
+                      className="btn-delete-project"
+                      disabled={saving}
+                      title="Delete project"
+                      onClick={(e) => { e.stopPropagation(); deleteProject(p); }}
+                    >
+                      🗑
+                    </button>
+                  </div>
                   <h3 className="p-name">{p.title}</h3>
-                  <p className="p-due">{p.slots} open slots</p>
+                  <p className="p-due">{p.slots} open slots · {applications.filter(a => a.projectId === p.id).length} applicants</p>
                   <p className="p-desc">{p.description}</p>
                   <div className="skills-tags" style={{marginTop: "8px"}}>
                     {p.skills.split(",").map(s => (
@@ -1571,14 +1799,14 @@ function FacultyDashboard({ profile, saveProfile }) {
                       )}
                       {app.status === "Pending" && (
                         <div className="student-actions">
-                          <button className="btn-accept" onClick={() => updateStatus(i, "Accepted")}>✓ Accept</button>
-                          <button className="btn-reject" onClick={() => updateStatus(i, "Rejected")}>✕ Reject</button>
+                          <button className="btn-accept" disabled={saving} onClick={() => updateStatus(app.id, "Accepted")}>✓ Accept</button>
+                          <button className="btn-reject" disabled={saving} onClick={() => updateStatus(app.id, "Rejected")}>✕ Reject</button>
                         </div>
                       )}
                       {app.status !== "Pending" && (
                         <button
                           className="btn-undo"
-                          onClick={() => updateStatus(i, "Pending")}
+                          onClick={() => updateStatus(app.id, "Pending")}
                         >
                           ↩ Undo
                         </button>
@@ -1809,6 +2037,7 @@ function FacultyDashboard({ profile, saveProfile }) {
           onClose={() => setShowNotifications(false)}
         />
       )}
+      <ToastContainer toasts={toasts} dismiss={dismissToast} />
     </div>
   );
 }
