@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { applicationStore } from "./store.js";
+import { api, saveSession, clearSession } from "./api.js";
 import './App.css';
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
@@ -52,86 +53,50 @@ function RoleSelection({ onSelect }) {
 }
 
 // ── Login Form ─────────────────────────────────────────────────────────────────
-function LoginForm({ role, onBack }) {
+function LoginForm({ role, onBack, onLoginSuccess }) {
   const navigate = useNavigate();
-  const [mode, setMode] = useState("login");
-  const [form, setForm] = useState({ email: "", password: "", confirm: "" });
-
-  const defaultAccounts = {
-    student: [{ email: "student@demo.com", password: "1234" }],
-    faculty: [{ email: "faculty@demo.com", password: "1234" }],
-  };
-
-  const getStoredAccounts = () => {
-    const raw = localStorage.getItem("devcollabAccounts");
-    if (!raw) return { student: [], faculty: [] };
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return { student: [], faculty: [] };
-    }
-  };
-
-  const saveStoredAccounts = (accounts) => {
-    localStorage.setItem("devcollabAccounts", JSON.stringify(accounts));
-  };
-
-  const accounts = {
-    student: [...defaultAccounts.student, ...getStoredAccounts().student],
-    faculty: [...defaultAccounts.faculty, ...getStoredAccounts().faculty],
-  };
+  const [mode, setMode]   = useState("login");
+  const [form, setForm]   = useState({ name: "", email: "", password: "", confirm: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const login = () => {
-    if (!form.email || !form.password) {
-      alert("Please enter your email and password.");
-      return;
-    }
-
-    const matched = accounts[role].find(
-      (account) => account.email.toLowerCase() === form.email.trim().toLowerCase()
-    );
-
-    if (matched && matched.password === form.password) {
+  const login = async () => {
+    if (!form.email || !form.password) { setError("Please enter your email and password."); return; }
+    setLoading(true); setError("");
+    try {
+      const { token, user } = await api.auth.login(form.email.trim(), form.password);
+      if (user.role !== role) { setError(`This account is registered as ${user.role}, not ${role}.`); return; }
+      saveSession(token, user);
+      onLoginSuccess(user);
       navigate(`/${role}`);
-    } else {
-      alert("Invalid credentials");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const createAccount = () => {
-    if (!form.email || !form.password || !form.confirm) {
-      alert("Please complete all fields.");
-      return;
+  const createAccount = async () => {
+    if (!form.name || !form.email || !form.password || !form.confirm) { setError("Please complete all fields."); return; }
+    if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
+    setLoading(true); setError("");
+    try {
+      const { token, user } = await api.auth.register(form.name.trim(), form.email.trim(), form.password, role);
+      saveSession(token, user);
+      onLoginSuccess(user);
+      navigate(`/${role}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-
-    if (form.password !== form.confirm) {
-      alert("Passwords do not match.");
-      return;
-    }
-
-    const stored = getStoredAccounts();
-    const existing = accounts[role].some(
-      (account) => account.email.toLowerCase() === form.email.trim().toLowerCase()
-    );
-
-    if (existing) {
-      alert("This account already exists. Please sign in.");
-      return;
-    }
-
-    const updated = {
-      ...stored,
-      [role]: [...stored[role], { email: form.email.trim(), password: form.password }],
-    };
-
-    saveStoredAccounts(updated);
-    navigate(`/${role}`);
   };
 
   const switchMode = (nextMode) => {
-    setForm({ email: "", password: "", confirm: "" });
+    setForm({ name: "", email: "", password: "", confirm: "" });
+    setError("");
     setMode(nextMode);
   };
 
@@ -146,15 +111,23 @@ function LoginForm({ role, onBack }) {
         <h1>{mode === "login" ? `${role === "student" ? "Student" : "Faculty"} Login` : `Create ${role === "student" ? "Student" : "Faculty"} Account`}</h1>
         <p>{mode === "login" ? `Sign in to access your ${role} workspace` : `Create a new ${role} account to start collaborating`}</p>
       </div>
+      {mode === "signup" && (
+        <div className="input-field">
+          <label>Full Name</label>
+          <div className="input-wrap">
+            <input name="name" type="text" placeholder="Your full name" value={form.name} onChange={handle} />
+          </div>
+        </div>
+      )}
       <div className="input-field">
         <label>Email</label>
         <div className="input-wrap">
           <span className="input-icon"><IconMail /></span>
-          <input name="email" type="email" placeholder={`${role}@demo.com`} value={form.email} onChange={handle} />
+          <input name="email" type="email" placeholder={`${role}@university.edu`} value={form.email} onChange={handle} />
         </div>
       </div>
       <div className="input-field">
-        <label>{mode === "login" ? "Password" : "Password"}</label>
+        <label>Password</label>
         <div className="input-wrap">
           <span className="input-icon"><IconLock /></span>
           <input name="password" type="password" placeholder="••••••••" value={form.password} onChange={handle} />
@@ -169,8 +142,9 @@ function LoginForm({ role, onBack }) {
           </div>
         </div>
       )}
-      <button className="btn-primary" onClick={mode === "login" ? login : createAccount} style={{ width: "100%", marginTop: "1rem" }}>
-        {mode === "login" ? "Sign In →" : "Create Account →"}
+      {error && <p style={{ color: "#f87171", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
+      <button className="btn-primary" onClick={mode === "login" ? login : createAccount} disabled={loading} style={{ width: "100%", marginTop: "1rem", opacity: loading ? 0.7 : 1 }}>
+        {loading ? "Please wait…" : mode === "login" ? "Sign In →" : "Create Account →"}
       </button>
       <div className="login-extra">
         {mode === "login" ? (
@@ -187,19 +161,12 @@ function LoginForm({ role, onBack }) {
   );
 }
 
-function LoginFlow({ roleOverride }) {
+function LoginFlow({ roleOverride, onLoginSuccess }) {
   const [selectedRole, setSelectedRole] = useState(roleOverride || null);
   const [step, setStep] = useState(roleOverride ? "login" : "select");
 
-  const startLogin = (role) => {
-    setSelectedRole(role);
-    setStep("login");
-  };
-
-  const goBack = () => {
-    setStep("select");
-    setSelectedRole(null);
-  };
+  const startLogin = (role) => { setSelectedRole(role); setStep("login"); };
+  const goBack     = ()     => { setStep("select"); setSelectedRole(null); };
 
   return (
     <div className="login-page">
@@ -211,7 +178,13 @@ function LoginFlow({ roleOverride }) {
           {step === "select" ? (
             <RoleSelection onSelect={startLogin} />
           ) : (
-            selectedRole && <LoginForm role={selectedRole} onBack={goBack} />
+            selectedRole && (
+              <LoginForm
+                role={selectedRole}
+                onBack={goBack}
+                onLoginSuccess={onLoginSuccess}
+              />
+            )
           )}
         </div>
       </div>
@@ -279,7 +252,7 @@ function Sidebar({ role, activePage, setActivePage }) {
             </div>
           ))}
         </div>
-        <button className="sb-logout" onClick={() => navigate("/")} style={{ marginTop: "12px" }}>← Log out</button>
+        <button className="sb-logout" onClick={() => { clearSession(); navigate("/"); }} style={{ marginTop: "12px" }}>← Log out</button>
       </div>
     </aside>
   );
@@ -1852,17 +1825,26 @@ export default function App() {
     };
   });
 
-  const saveProfile = (data) => {
-    setProfile(data);
-    localStorage.setItem("devcollabProfile", JSON.stringify(data));
+  const saveProfile = async (data) => {
+    try {
+      const updated = await api.auth.updateProfile(data);
+      setProfile(updated);
+      localStorage.setItem("devcollabProfile", JSON.stringify(updated));
+    } catch {
+      // fallback: save locally if backend unreachable
+      setProfile(data);
+      localStorage.setItem("devcollabProfile", JSON.stringify(data));
+    }
   };
+
+  const handleLoginSuccess = (user) => setProfile(user);
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LoginFlow />} />
-        <Route path="/login/student" element={<LoginFlow roleOverride="student" />} />
-        <Route path="/login/faculty" element={<LoginFlow roleOverride="faculty" />} />
+        <Route path="/"              element={<LoginFlow onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="/login/student" element={<LoginFlow roleOverride="student" onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="/login/faculty" element={<LoginFlow roleOverride="faculty" onLoginSuccess={handleLoginSuccess} />} />
         <Route path="/student" element={<StudentDashboard profile={profile} saveProfile={saveProfile} />} />
         <Route path="/faculty" element={<FacultyDashboard profile={profile} saveProfile={saveProfile} />} />
       </Routes>
