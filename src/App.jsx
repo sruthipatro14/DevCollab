@@ -328,7 +328,7 @@ function ApplyModal({ project, onClose, onSubmit }) {
                 <div className="input-field">
                   <label>Full Name *</label>
                   <div className="input-wrap">
-                    <input name="name" placeholder="Alex Kumar" value={form.name} onChange={handle} />
+                    <input name="name" placeholder="Your full name" value={form.name} onChange={handle} />
                   </div>
                 </div>
                 <div className="input-field">
@@ -371,7 +371,7 @@ function ApplyModal({ project, onClose, onSubmit }) {
 }
 
 // ── Create Project Modal ───────────────────────────────────────────────────────
-function CreateProjectModal({ onClose, onSubmit }) {
+function CreateProjectModal({ onClose, onSubmit, ownerName }) {
   const [form, setForm] = useState({ title: "", skills: "", slots: "", description: "" });
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -381,11 +381,11 @@ function CreateProjectModal({ onClose, onSubmit }) {
     onSubmit({
       ...form,
       id: Date.now(),
-      faculty: "Current Faculty",
+      faculty: ownerName || "Faculty",
       slots: parseInt(form.slots),
       type: "faculty",
       createdBy: "faculty",
-      ownerName: "Current Faculty"
+      ownerName: ownerName || "Faculty"
     });
   };
 
@@ -438,7 +438,7 @@ function CreateProjectModal({ onClose, onSubmit }) {
 }
 
 // ── Create Student Collaboration Project Modal ───────────────────────────────────────────────────────────
-function CreateStudentProjectModal({ onClose, onSubmit }) {
+function CreateStudentProjectModal({ onClose, onSubmit, ownerName }) {
   const [form, setForm] = useState({ title: "", skills: "", slots: "", description: "" });
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -451,7 +451,7 @@ function CreateStudentProjectModal({ onClose, onSubmit }) {
       slots: parseInt(form.slots),
       type: "student",
       createdBy: "student",
-      ownerName: "Alex Kumar"
+      ownerName: ownerName || "Student"
     });
   };
 
@@ -582,6 +582,119 @@ function EditProfileModal({ profile, onClose, onSave }) {
   );
 }
 
+// ── Project Details Modal ─────────────────────────────────────────────────────
+function ProjectDetailsModal({ project, applications, onClose, onApply }) {
+  const isFaculty = project.type === "faculty";
+  const alreadyApplied = applications.some(a => a.projectId === project.id);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+              <span className={`project-type-badge ${isFaculty ? "badge-faculty" : "badge-student"}`}>
+                {isFaculty ? "Faculty Project" : "Student Collaboration"}
+              </span>
+            </div>
+            <h2>{project.title}</h2>
+            <p className="modal-sub">{project.faculty || project.ownerName} · {project.slots} open slots</p>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body">
+          <div className="proj-detail-section">
+            <span className="proj-detail-label">About this project</span>
+            <p className="proj-detail-desc">{project.description}</p>
+          </div>
+
+          <div className="proj-detail-section">
+            <span className="proj-detail-label">Skills required</span>
+            <div className="skills-tags" style={{ marginTop: "8px" }}>
+              {project.skills.split(",").map(s => (
+                <span className="skill-tag" key={s}>{s.trim()}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="proj-detail-meta-row">
+            <div className="proj-detail-meta-item">
+              <span className="proj-detail-label">Owner</span>
+              <span className="proj-detail-value">{project.faculty || project.ownerName}</span>
+            </div>
+            <div className="proj-detail-meta-item">
+              <span className="proj-detail-label">Open Slots</span>
+              <span className="proj-detail-value">{project.slots}</span>
+            </div>
+            <div className="proj-detail-meta-item">
+              <span className="proj-detail-label">Type</span>
+              <span className="proj-detail-value">{isFaculty ? "Faculty" : "Student"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost-cancel" onClick={onClose}>Close</button>
+          {alreadyApplied ? (
+            <span className="applied-badge" style={{ padding: "10px 20px" }}>✓ Already Applied</span>
+          ) : (
+            <button className="btn-primary" onClick={() => { onApply(project); onClose(); }}>
+              Apply Now →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Notifications Modal ───────────────────────────────────────────────────────
+function NotificationsModal({ notifications, onClose }) {
+  const typeIcon = (type) => {
+    if (type === "accepted") return "✅";
+    if (type === "rejected") return "❌";
+    if (type === "pending")  return "⏳";
+    if (type === "project")  return "⬡";
+    return "🔔";
+  };
+
+  return (
+    <div className="notif-overlay" onClick={onClose}>
+      <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="notif-header">
+          <div className="notif-title-row">
+            <h2 className="notif-title">Notifications</h2>
+            {notifications.length > 0 && (
+              <span className="notif-count">{notifications.length}</span>
+            )}
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="notif-body">
+          {notifications.length === 0 ? (
+            <div className="notif-empty">
+              <span className="notif-empty-icon">🔕</span>
+              <p>You're all caught up</p>
+            </div>
+          ) : (
+            notifications.map((n, i) => (
+              <div className="notif-item" key={i}>
+                <div className="notif-icon">{typeIcon(n.type)}</div>
+                <div className="notif-content">
+                  <p className="notif-text">{n.text}</p>
+                  <span className="notif-date">{n.date}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Student Dashboard ──────────────────────────────────────────────────────────
 function StudentDashboard({ profile, saveProfile }) {
   const [activePage, setActivePage] = useState("Dashboard");
@@ -590,9 +703,11 @@ function StudentDashboard({ profile, saveProfile }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editProfile, setEditProfile] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [viewProject, setViewProject] = useState(null);
 
   const currentUserName = profile.name || "User";
-  const currentUserEmail = profile.email || "student@demo.com";
+  const currentUserEmail = profile.email || "";
 
   const applyToProject = (app) => {
     console.log("Applying to project:", app);
@@ -633,10 +748,15 @@ function StudentDashboard({ profile, saveProfile }) {
             <div className="topbar">
               <div>
                 <h1 className="page-title">Student Dashboard</h1>
-                <p className="page-sub">Welcome back, {currentUserName} 👋 — Semester 5</p>
+                <p className="page-sub">Welcome back, {currentUserName} </p>
               </div>
               <div className="topbar-actions">
-                <button className="btn-ghost">🔔</button>
+                <button className="btn-ghost notif-bell" onClick={() => setShowNotifications(true)}>
+                  🔔
+                  {applications.some(a => a.status !== "Pending") && (
+                    <span className="notif-dot" />
+                  )}
+                </button>
                 <div className="avatar" onClick={() => setActivePage("Profile")}>{profile.name ? profile.name.charAt(0).toUpperCase() : "U"}</div>
               </div>
             </div>
@@ -661,7 +781,7 @@ function StudentDashboard({ profile, saveProfile }) {
                 const isOwnProject = p.ownerName && p.ownerName === currentUserName;
                 
                 return (
-                  <div className="p-card" key={p.id}>
+                  <div className="p-card" key={p.id} onClick={() => setViewProject(p)}>
                     <div className={`p-tag ${isFacultyProject ? "tag-indigo" : "tag-teal"}`}>
                       {isFacultyProject ? "Faculty" : "Student"}
                     </div>
@@ -669,14 +789,14 @@ function StudentDashboard({ profile, saveProfile }) {
                     <p className="p-due">{isFacultyProject ? p.faculty : p.ownerName} · {p.slots} slots</p>
                     <p className="p-desc">{p.description}</p>
                     {isOwnProject && (
-                      <button className="btn-ghost-secondary" onClick={() => setActivePage("My Collaborations")}>Manage →</button>
+                      <button className="btn-ghost-secondary" onClick={(e) => { e.stopPropagation(); setActivePage("My Collaborations"); }}>Manage →</button>
                     )}
                     {!isOwnProject && alreadyApplied && (
                       <span className="applied-badge">✓ Applied</span>
                     )}
                     {!isOwnProject && !alreadyApplied && (
-                      <button className="btn-apply" onClick={() => {
-                        console.log("Dashboard Apply Now clicked, project:", p);
+                      <button className="btn-apply" onClick={(e) => {
+                        e.stopPropagation();
                         setSelectedProject(p);
                       }}>Apply Now →</button>
                     )}
@@ -704,7 +824,7 @@ function StudentDashboard({ profile, saveProfile }) {
                 const projectApplicants = applications.filter(a => a.projectId === p.id);
                 
                 return (
-                  <div className="project-row" key={p.id}>
+                  <div className="project-row" key={p.id} onClick={() => setViewProject(p)}>
                     <div className="project-row-left">
                       <div className="project-row-icon">⬡</div>
                       <div>
@@ -730,20 +850,17 @@ function StudentDashboard({ profile, saveProfile }) {
                     </div>
                     <div className="project-row-right">
                       {isOwnProject ? (
-                        <button className="btn-ghost-secondary" onClick={() => setActivePage("My Collaborations")}>
+                        <button className="btn-ghost-secondary" onClick={(e) => { e.stopPropagation(); setActivePage("My Collaborations"); }}>
                           Manage →
                         </button>
                       ) : isFacultyProject ? (
                         alreadyApplied
                           ? <span className="applied-badge">✓ Applied</span>
-                          : <button className="btn-apply" onClick={() => setSelectedProject(p)}>Apply Now →</button>
+                          : <button className="btn-apply" onClick={(e) => { e.stopPropagation(); setSelectedProject(p); }}>Apply Now →</button>
                       ) : (
                         alreadyApplied
                           ? <span className="applied-badge">✓ Applied</span>
-                          : <button className="btn-apply" onClick={() => {
-                              console.log("Browse Projects Apply Now clicked, project:", p);
-                              setSelectedProject(p);
-                            }}>Apply Now →</button>
+                          : <button className="btn-apply" onClick={(e) => { e.stopPropagation(); setSelectedProject(p); }}>Apply Now →</button>
                       )}
                     </div>
                   </div>
@@ -913,6 +1030,174 @@ function StudentDashboard({ profile, saveProfile }) {
           </>
         )}
 
+        {/* ── Team Page ── */}
+        {activePage === "Team" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">My Team</h1>
+                <p className="page-sub">People you're collaborating with on accepted projects</p>
+              </div>
+            </div>
+
+            {applications.filter(a => a.status === "Accepted").length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">👥</div>
+                <h3>No team yet</h3>
+                <p>Get accepted to a project to see your team here</p>
+                <button className="btn-primary" onClick={() => setActivePage("Browse Projects")}>Browse Projects</button>
+              </div>
+            ) : (
+              <div className="team-grid">
+                {applications.filter(a => a.status === "Accepted").map((app, i) => {
+                  const project = projects.find(p => p.id === app.projectId);
+                  const teammates = applications.filter(
+                    a => a.projectId === app.projectId && a.status === "Accepted" && a.email !== app.email
+                  );
+                  return (
+                    <div className="team-card" key={i}>
+                      <div className="team-card-header">
+                        <div className="team-project-icon">⬡</div>
+                        <div>
+                          <h3 className="team-project-title">{app.projectTitle}</h3>
+                          <p className="team-project-meta">
+                            {project ? (project.faculty || project.ownerName) : "—"} · {project?.slots || "—"} slots
+                          </p>
+                        </div>
+                        <span className="status-badge badge-green">Active</span>
+                      </div>
+
+                      <div className="team-you-row">
+                        <div className="team-member-avatar you">{currentUserName.charAt(0).toUpperCase()}</div>
+                        <div className="team-member-info">
+                          <span className="team-member-name">{currentUserName} <span className="team-you-tag">You</span></span>
+                          <span className="team-member-role">Contributor · {app.skills}</span>
+                        </div>
+                      </div>
+
+                      {teammates.length > 0 && (
+                        <div className="team-members-list">
+                          <span className="team-section-label">Teammates</span>
+                          {teammates.map((t, j) => (
+                            <div className="team-member-row" key={j}>
+                              <div className="team-member-avatar">{t.name?.charAt(0)?.toUpperCase() || "?"}</div>
+                              <div className="team-member-info">
+                                <span className="team-member-name">{t.name}</span>
+                                <span className="team-member-role">{t.email} · {t.skills}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="team-skills-row">
+                        <span className="team-section-label">Project Skills</span>
+                        <div className="skills-tags" style={{ marginTop: "6px" }}>
+                          {(project?.skills || app.skills).split(",").map(s => (
+                            <span className="skill-tag" key={s}>{s.trim()}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Grades Page ── */}
+        {activePage === "Grades" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">My Performance</h1>
+                <p className="page-sub">Your project ratings, feedback, and skills gained</p>
+              </div>
+              {applications.filter(a => a.status === "Accepted" && a.rating).length > 0 && (
+                <div className="grades-avg-badge">
+                  <span className="grades-avg-stars">
+                    {"⭐".repeat(Math.round(
+                      applications.filter(a => a.status === "Accepted" && a.rating)
+                        .reduce((sum, a) => sum + parseFloat(a.rating || 0), 0) /
+                      applications.filter(a => a.status === "Accepted" && a.rating).length
+                    ))}
+                  </span>
+                  <span className="grades-avg-label">
+                    {(
+                      applications.filter(a => a.status === "Accepted" && a.rating)
+                        .reduce((sum, a) => sum + parseFloat(a.rating || 0), 0) /
+                      applications.filter(a => a.status === "Accepted" && a.rating).length
+                    ).toFixed(1)} avg
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {applications.filter(a => a.status === "Accepted").length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📊</div>
+                <h3>No grades yet</h3>
+                <p>Get accepted to projects to see your performance here</p>
+              </div>
+            ) : (
+              <div className="grades-grid">
+                {applications.filter(a => a.status === "Accepted").map((app, i) => {
+                  const rating = parseFloat(app.rating) || 0;
+                  const fullStars = Math.floor(rating);
+                  const hasHalf = rating - fullStars >= 0.5;
+                  const starsDisplay = "⭐".repeat(fullStars) + (hasHalf ? "✨" : "");
+
+                  return (
+                    <div className="grade-card" key={i}>
+                      <div className="grade-card-header">
+                        <div className="grade-project-icon">⬡</div>
+                        <div className="grade-project-info">
+                          <h3 className="grade-project-title">{app.projectTitle}</h3>
+                          <p className="grade-project-meta">Completed · {app.appliedAt}</p>
+                        </div>
+                        <span className="status-badge badge-green">Accepted</span>
+                      </div>
+
+                      <div className="grade-rating-row">
+                        {rating > 0 ? (
+                          <>
+                            <span className="grade-stars">{starsDisplay}</span>
+                            <span className="grade-score">{rating.toFixed(1)} / 5.0</span>
+                          </>
+                        ) : (
+                          <span className="grade-no-rating">Not rated yet</span>
+                        )}
+                      </div>
+
+                      {app.feedback ? (
+                        <div className="grade-feedback-block">
+                          <span className="grade-section-label">Faculty Feedback</span>
+                          <p className="grade-feedback">"{app.feedback}"</p>
+                        </div>
+                      ) : (
+                        <p className="grade-no-feedback">No feedback provided yet</p>
+                      )}
+
+                      <div className="grade-skills-block">
+                        <span className="grade-section-label">Skills Gained</span>
+                        <div className="skills-tags" style={{ marginTop: "8px" }}>
+                          {app.skillsGained
+                            ? app.skillsGained.split(",").map(s => (
+                                <span className="skill-tag skill-tag-gained" key={s}>{s.trim()}</span>
+                              ))
+                            : <span className="grade-no-feedback">No skills recorded yet</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
         {/* ── Profile Page ── */}
         {activePage === "Profile" && (
           <>
@@ -954,10 +1239,20 @@ function StudentDashboard({ profile, saveProfile }) {
         />
       )}
 
+      {viewProject && (
+        <ProjectDetailsModal
+          project={viewProject}
+          applications={applications}
+          onClose={() => setViewProject(null)}
+          onApply={(p) => { setSelectedProject(p); setViewProject(null); }}
+        />
+      )}
+
       {showCreateModal && (
         <CreateStudentProjectModal
           onClose={() => setShowCreateModal(false)}
           onSubmit={createStudentProject}
+          ownerName={currentUserName}
         />
       )}
 
@@ -966,6 +1261,26 @@ function StudentDashboard({ profile, saveProfile }) {
           profile={profile}
           onClose={() => setEditProfile(false)}
           onSave={saveProfile}
+        />
+      )}
+
+      {showNotifications && (
+        <NotificationsModal
+          notifications={[
+            ...applications.map(app => ({
+              type: app.status === "Accepted" ? "accepted" : app.status === "Rejected" ? "rejected" : "pending",
+              text: app.status === "Pending"
+                ? `Application submitted for "${app.projectTitle}"`
+                : `Your application for "${app.projectTitle}" was ${app.status.toLowerCase()}`,
+              date: app.appliedAt || "Recently",
+            })),
+            ...projects.slice(0, 5).map(p => ({
+              type: "project",
+              text: `New project available: "${p.title}"`,
+              date: "Recently",
+            })),
+          ]}
+          onClose={() => setShowNotifications(false)}
         />
       )}
     </div>
@@ -978,8 +1293,9 @@ function FacultyDashboard({ profile, saveProfile }) {
   const [applications, setApplications] = useState(applicationStore.applications);
   const [projects, setProjects] = useState(applicationStore.projects.filter(p => p.type === "faculty"));
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const currentUserName = profile.name || "Prof. Johnson";
-  const currentUserEmail = profile.email || "faculty@demo.com";
+  const [showNotifications, setShowNotifications] = useState(false);
+  const currentUserName = profile.name || "Faculty";
+  const currentUserEmail = profile.email || "";
 
   const [editProfile, setEditProfile] = useState(false);
 
@@ -1014,10 +1330,15 @@ function FacultyDashboard({ profile, saveProfile }) {
             <div className="topbar">
               <div>
                 <h1 className="page-title">Faculty Dashboard</h1>
-                <p className="page-sub">Good morning, Prof. Johnson 👋</p>
+                <p className="page-sub">Welcome back, {currentUserName} 👋</p>
               </div>
               <div className="topbar-actions">
-                <button className="btn-ghost">🔔</button>
+                <button className="btn-ghost notif-bell" onClick={() => setShowNotifications(true)}>
+                  🔔
+                  {applications.some(a => a.status === "Pending") && (
+                    <span className="notif-dot" />
+                  )}
+                </button>
                 <div className="avatar fac" onClick={() => setActivePage("Profile")}>{profile.name ? profile.name.charAt(0).toUpperCase() : "P"}</div>
               </div>
             </div>
@@ -1117,6 +1438,60 @@ function FacultyDashboard({ profile, saveProfile }) {
                         <button className="btn-reject" onClick={() => updateStatus(i, "Rejected")}>✕ Reject</button>
                       </div>
                     )}
+
+                    {app.status === "Accepted" && (
+                      <div className="grade-inputs">
+                        <span className="grade-inputs-label">📊 Grade this student</span>
+                        <div className="grade-inputs-row">
+                          <div className="grade-input-wrap">
+                            <label className="grade-input-label">Rating (1–5)</label>
+                            <input
+                              className="grade-input"
+                              type="number"
+                              min="1"
+                              max="5"
+                              step="0.5"
+                              placeholder="e.g. 4.5"
+                              defaultValue={app.rating || ""}
+                              onChange={(e) => {
+                                const updated = [...applicationStore.applications];
+                                updated[i] = { ...updated[i], rating: e.target.value };
+                                applicationStore.applications = updated;
+                                setApplications([...updated]);
+                              }}
+                            />
+                          </div>
+                          <div className="grade-input-wrap grade-input-grow">
+                            <label className="grade-input-label">Skills Gained</label>
+                            <input
+                              className="grade-input"
+                              placeholder="e.g. Python, ML, React"
+                              defaultValue={app.skillsGained || ""}
+                              onChange={(e) => {
+                                const updated = [...applicationStore.applications];
+                                updated[i] = { ...updated[i], skillsGained: e.target.value };
+                                applicationStore.applications = updated;
+                                setApplications([...updated]);
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="grade-input-wrap">
+                          <label className="grade-input-label">Feedback</label>
+                          <input
+                            className="grade-input"
+                            placeholder="e.g. Great work on the ML models, showed strong initiative"
+                            defaultValue={app.feedback || ""}
+                            onChange={(e) => {
+                              const updated = [...applicationStore.applications];
+                              updated[i] = { ...updated[i], feedback: e.target.value };
+                              applicationStore.applications = updated;
+                              setApplications([...updated]);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1152,7 +1527,254 @@ function FacultyDashboard({ profile, saveProfile }) {
           </>
         )}
 
-        {/* ── Profile Page ── */}
+        {/* ── Students Page ── */}
+        {activePage === "Students" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Students</h1>
+                <p className="page-sub">Manage all student applications to your projects</p>
+              </div>
+              <div className="students-summary">
+                <span className="students-stat"><span className="students-stat-val">{applications.length}</span> Total</span>
+                <span className="students-stat accent-amber"><span className="students-stat-val">{applications.filter(a => a.status === "Pending").length}</span> Pending</span>
+                <span className="students-stat accent-green"><span className="students-stat-val">{applications.filter(a => a.status === "Accepted").length}</span> Accepted</span>
+              </div>
+            </div>
+
+            {applications.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">🎓</div>
+                <h3>No students yet</h3>
+                <p>No one has applied to your projects yet</p>
+              </div>
+            ) : (
+              <div className="students-grid">
+                {applications.map((app, i) => (
+                  <div className="student-card" key={i}>
+                    <div className="student-card-header">
+                      <div className="student-avatar">{app.name?.charAt(0)?.toUpperCase() || "S"}</div>
+                      <div className="student-header-info">
+                        <h3 className="student-name">{app.name}</h3>
+                        <p className="student-email">{app.email}</p>
+                      </div>
+                      <span className={`status-badge ${app.status === "Accepted" ? "badge-green" : app.status === "Rejected" ? "badge-red" : "badge-amber"}`}>
+                        {app.status}
+                      </span>
+                    </div>
+
+                    <div className="student-card-body">
+                      <div className="student-field">
+                        <span className="student-field-label">Project</span>
+                        <span className="student-field-value">{app.projectTitle}</span>
+                      </div>
+                      <div className="student-field">
+                        <span className="student-field-label">Skills</span>
+                        <div className="skills-tags" style={{ marginTop: 0 }}>
+                          {app.skills?.split(",").map(s => (
+                            <span className="skill-tag" key={s}>{s.trim()}</span>
+                          ))}
+                        </div>
+                      </div>
+                      {app.appliedAt && (
+                        <div className="student-field">
+                          <span className="student-field-label">Applied</span>
+                          <span className="student-field-value">{app.appliedAt}</span>
+                        </div>
+                      )}
+                      {app.message && (
+                        <div className="student-field student-field-full">
+                          <span className="student-field-label">Message</span>
+                          <span className="student-field-value student-message">{app.message}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="student-card-footer">
+                      {app.resume && (
+                        <a href={app.resume} target="_blank" rel="noreferrer" className="btn-resume-link">
+                          View Resume ↗
+                        </a>
+                      )}
+                      {app.status === "Pending" && (
+                        <div className="student-actions">
+                          <button className="btn-accept" onClick={() => updateStatus(i, "Accepted")}>✓ Accept</button>
+                          <button className="btn-reject" onClick={() => updateStatus(i, "Rejected")}>✕ Reject</button>
+                        </div>
+                      )}
+                      {app.status !== "Pending" && (
+                        <button
+                          className="btn-undo"
+                          onClick={() => updateStatus(i, "Pending")}
+                        >
+                          ↩ Undo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Reports Page ── */}
+        {activePage === "Reports" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Reports & Insights</h1>
+                <p className="page-sub">Analytics across your projects and student activity</p>
+              </div>
+            </div>
+
+            {/* ── Summary Stats ── */}
+            <div className="stats-grid" style={{ marginBottom: "var(--spacing-3xl)" }}>
+              <div className="stat-card accent-indigo">
+                <span className="stat-val">{projects.length}</span>
+                <span className="stat-lbl">Total Projects</span>
+              </div>
+              <div className="stat-card accent-amber">
+                <span className="stat-val">{applications.length}</span>
+                <span className="stat-lbl">Total Applications</span>
+              </div>
+              <div className="stat-card accent-green">
+                <span className="stat-val">{applications.filter(a => a.status === "Accepted").length}</span>
+                <span className="stat-lbl">Accepted</span>
+              </div>
+              <div className="stat-card accent-teal">
+                <span className="stat-val">{applications.filter(a => a.status === "Rejected").length}</span>
+                <span className="stat-lbl">Rejected</span>
+              </div>
+            </div>
+
+            {/* ── Acceptance Rate Bar ── */}
+            {applications.length > 0 && (() => {
+              const accepted = applications.filter(a => a.status === "Accepted").length;
+              const rejected = applications.filter(a => a.status === "Rejected").length;
+              const pending  = applications.filter(a => a.status === "Pending").length;
+              const total    = applications.length;
+              return (
+                <div className="report-section">
+                  <div className="section-header" style={{ marginBottom: "var(--spacing-lg)" }}>
+                    <h2 className="section-title">Application Breakdown</h2>
+                    <span className="report-total-label">{total} total</span>
+                  </div>
+                  <div className="report-bar-track">
+                    {accepted > 0 && (
+                      <div
+                        className="report-bar-seg seg-green"
+                        style={{ width: `${(accepted / total) * 100}%` }}
+                        title={`Accepted: ${accepted}`}
+                      />
+                    )}
+                    {pending > 0 && (
+                      <div
+                        className="report-bar-seg seg-amber"
+                        style={{ width: `${(pending / total) * 100}%` }}
+                        title={`Pending: ${pending}`}
+                      />
+                    )}
+                    {rejected > 0 && (
+                      <div
+                        className="report-bar-seg seg-red"
+                        style={{ width: `${(rejected / total) * 100}%` }}
+                        title={`Rejected: ${rejected}`}
+                      />
+                    )}
+                  </div>
+                  <div className="report-bar-legend">
+                    <span className="report-legend-item"><span className="legend-dot dot-green" /> Accepted ({accepted})</span>
+                    <span className="report-legend-item"><span className="legend-dot dot-amber" /> Pending ({pending})</span>
+                    <span className="report-legend-item"><span className="legend-dot dot-red" /> Rejected ({rejected})</span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Project Activity ── */}
+            <div className="report-section">
+              <div className="section-header" style={{ marginBottom: "var(--spacing-lg)" }}>
+                <h2 className="section-title">Project Activity</h2>
+              </div>
+              {projects.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">📂</div>
+                  <h3>No projects yet</h3>
+                  <p>Create a project to start seeing activity</p>
+                </div>
+              ) : (
+                <div className="report-projects-list">
+                  {projects
+                    .map(p => ({ ...p, count: applications.filter(a => a.projectId === p.id).length }))
+                    .sort((a, b) => b.count - a.count)
+                    .map((p) => {
+                      const accepted = applications.filter(a => a.projectId === p.id && a.status === "Accepted").length;
+                      const maxCount = Math.max(...projects.map(pr => applications.filter(a => a.projectId === pr.id).length), 1);
+                      const fill = Math.round((p.count / maxCount) * 100);
+                      return (
+                        <div className="report-project-row" key={p.id}>
+                          <div className="report-project-left">
+                            <div className="report-project-icon">⬡</div>
+                            <div className="report-project-info">
+                              <span className="report-project-title">{p.title}</span>
+                              <span className="report-project-meta">
+                                {p.slots} slots · {accepted} accepted
+                              </span>
+                            </div>
+                          </div>
+                          <div className="report-project-right">
+                            <div className="report-mini-bar-track">
+                              <div className="report-mini-bar-fill" style={{ width: `${fill}%` }} />
+                            </div>
+                            <span className="report-project-count">{p.count} app{p.count !== 1 ? "s" : ""}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* ── Top Skills ── */}
+            {applications.length > 0 && (() => {
+              const skillFreq = {};
+              applications.forEach(a => {
+                (a.skills || "").split(",").forEach(s => {
+                  const t = s.trim();
+                  if (t) skillFreq[t] = (skillFreq[t] || 0) + 1;
+                });
+              });
+              const sorted = Object.entries(skillFreq).sort((a, b) => b[1] - a[1]).slice(0, 12);
+              const max = sorted[0]?.[1] || 1;
+              return (
+                <div className="report-section">
+                  <div className="section-header" style={{ marginBottom: "var(--spacing-lg)" }}>
+                    <h2 className="section-title">Top Skills Among Applicants</h2>
+                  </div>
+                  <div className="report-skills-grid">
+                    {sorted.map(([skill, count]) => (
+                      <div className="report-skill-item" key={skill}>
+                        <div className="report-skill-header">
+                          <span className="report-skill-name">{skill}</span>
+                          <span className="report-skill-count">{count}</span>
+                        </div>
+                        <div className="report-skill-bar-track">
+                          <div
+                            className="report-skill-bar-fill"
+                            style={{ width: `${(count / max) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </>
+        )}
+
+        {/* ── Profile Page (Faculty) ── */}
         {activePage === "Profile" && (
           <div className="profile-card">
             <div className="profile-avatar">
@@ -1180,6 +1802,7 @@ function FacultyDashboard({ profile, saveProfile }) {
         <CreateProjectModal
           onClose={() => setShowCreateModal(false)}
           onSubmit={createProject}
+          ownerName={currentUserName}
         />
       )}
 
@@ -1188,6 +1811,29 @@ function FacultyDashboard({ profile, saveProfile }) {
           profile={profile}
           onClose={() => setEditProfile(false)}
           onSave={saveProfile}
+        />
+      )}
+
+      {showNotifications && (
+        <NotificationsModal
+          notifications={[
+            ...applications.filter(a => a.status === "Pending").map(app => ({
+              type: "pending",
+              text: `New application from ${app.name} for "${app.projectTitle}"`,
+              date: app.appliedAt || "Recently",
+            })),
+            ...applications.filter(a => a.status !== "Pending").map(app => ({
+              type: app.status === "Accepted" ? "accepted" : "rejected",
+              text: `You ${app.status.toLowerCase()} ${app.name}'s application for "${app.projectTitle}"`,
+              date: app.appliedAt || "Recently",
+            })),
+            ...projects.map(p => ({
+              type: "project",
+              text: `Your project "${p.title}" is live with ${p.slots} open slots`,
+              date: "Active",
+            })),
+          ]}
+          onClose={() => setShowNotifications(false)}
         />
       )}
     </div>
@@ -1199,8 +1845,8 @@ export default function App() {
   const [profile, setProfile] = useState(() => {
     const saved = localStorage.getItem("devcollabProfile");
     return saved ? JSON.parse(saved) : {
-      name: "Alex Kumar",
-      email: "student@demo.com",
+      name: "",
+      email: "",
       bio: "",
       resume: ""
     };
