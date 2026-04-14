@@ -1,7 +1,7 @@
 // ── Central API client ─────────────────────────────────────────────
 // All backend calls go through here. Components never use fetch directly.
 
-const BASE = "http://localhost:5000/api";
+const BASE = "http://localhost:5001/api";
 
 // Reads the JWT token stored after login
 const token = () => localStorage.getItem("devcollab_token");
@@ -27,7 +27,7 @@ async function request(method, path, body) {
   }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  if (!res.ok) throw new Error(data.detail || data.error || "Request failed");
   return data;
 }
 

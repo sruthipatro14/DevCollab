@@ -5,7 +5,6 @@ import { authenticate } from "./auth.js";
 const router = express.Router();
 
 // ── GET /api/projects ──────────────────────────────────────────────
-// Returns all projects with owner name
 router.get("/", async (req, res) => {
   try {
     const [rows] = await pool.execute(`
@@ -15,7 +14,6 @@ router.get("/", async (req, res) => {
       ORDER BY p.created_at DESC
     `);
 
-    // Shape to match what the frontend already expects
     const projects = rows.map(p => ({
       id:          p.id,
       title:       p.title,
@@ -30,12 +28,15 @@ router.get("/", async (req, res) => {
 
     res.json(projects);
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[GET /projects]", err.message);
+    res.status(500).json({
+      error: "Failed to fetch projects",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 
 // ── POST /api/projects ─────────────────────────────────────────────
-// Create a new project (auth required)
 router.post("/", authenticate, async (req, res) => {
   const { title, description, skills, slots, type } = req.body;
 
@@ -66,7 +67,11 @@ router.post("/", authenticate, async (req, res) => {
       faculty:     p.type === "faculty" ? p.owner_name : null,
     });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[POST /projects]", err.message);
+    res.status(500).json({
+      error: "Failed to create project",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 
@@ -78,13 +83,17 @@ router.delete("/:id", authenticate, async (req, res) => {
       [req.params.id]
     );
 
-    if (rows.length === 0) return res.status(404).json({ error: "Not found" });
+    if (rows.length === 0) return res.status(404).json({ error: "Project not found" });
     if (rows[0].owner_id !== req.user.id) return res.status(403).json({ error: "Forbidden" });
 
     await pool.execute("DELETE FROM projects WHERE id = ?", [req.params.id]);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[DELETE /projects/:id]", err.message);
+    res.status(500).json({
+      error: "Failed to delete project",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 

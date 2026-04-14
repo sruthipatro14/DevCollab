@@ -5,8 +5,6 @@ import { authenticate } from "./auth.js";
 const router = express.Router();
 
 // ── GET /api/applications ──────────────────────────────────────────
-// Faculty: all applications for their projects
-// Student: their own applications
 router.get("/", authenticate, async (req, res) => {
   try {
     let rows;
@@ -49,12 +47,15 @@ router.get("/", authenticate, async (req, res) => {
 
     res.json(apps);
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[GET /applications]", err.message);
+    res.status(500).json({
+      error: "Failed to fetch applications",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 
 // ── POST /api/applications ─────────────────────────────────────────
-// Student submits an application
 router.post("/", authenticate, async (req, res) => {
   if (req.user.role !== "student") {
     return res.status(403).json({ error: "Only students can apply" });
@@ -92,15 +93,18 @@ router.post("/", authenticate, async (req, res) => {
       appliedAt:    new Date(a.applied_at).toLocaleDateString(),
     });
   } catch (err) {
+    console.error("[POST /applications]", err.message);
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(409).json({ error: "Already applied to this project" });
     }
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({
+      error: "Failed to submit application",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 
 // ── PATCH /api/applications/:id ────────────────────────────────────
-// Faculty: update status, rating, feedback, skillsGained
 router.patch("/:id", authenticate, async (req, res) => {
   if (req.user.role !== "faculty") {
     return res.status(403).json({ error: "Only faculty can update applications" });
@@ -109,7 +113,6 @@ router.patch("/:id", authenticate, async (req, res) => {
   const { status, rating, feedback, skillsGained } = req.body;
 
   try {
-    // Make sure this application belongs to one of the faculty's projects
     const [check] = await pool.execute(`
       SELECT a.id FROM applications a
       JOIN projects p ON a.project_id = p.id
@@ -120,9 +123,9 @@ router.patch("/:id", authenticate, async (req, res) => {
 
     await pool.execute(
       `UPDATE applications
-       SET status = COALESCE(?, status),
-           rating = COALESCE(?, rating),
-           feedback = COALESCE(?, feedback),
+       SET status        = COALESCE(?, status),
+           rating        = COALESCE(?, rating),
+           feedback      = COALESCE(?, feedback),
            skills_gained = COALESCE(?, skills_gained)
        WHERE id = ?`,
       [status || null, rating || null, feedback || null, skillsGained || null, req.params.id]
@@ -142,7 +145,11 @@ router.patch("/:id", authenticate, async (req, res) => {
       skillsGained: a.skills_gained,
     });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[PATCH /applications/:id]", err.message);
+    res.status(500).json({
+      error: "Failed to update application",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 

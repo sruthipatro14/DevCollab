@@ -14,6 +14,10 @@ router.post("/register", async (req, res) => {
     return res.status(400).json({ error: "All fields are required" });
   }
 
+  if (!["student", "faculty"].includes(role)) {
+    return res.status(400).json({ error: "Role must be student or faculty" });
+  }
+
   try {
     const hash = await bcrypt.hash(password, 10);
     const [result] = await pool.execute(
@@ -32,10 +36,15 @@ router.post("/register", async (req, res) => {
       user: { id: result.insertId, name, email, role }
     });
   } catch (err) {
+    console.error("[register]", err.code, err.message);
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(409).json({ error: "Email already registered" });
     }
-    res.status(500).json({ error: "Server error" });
+    // Surface the real DB error in development so it's visible in the terminal
+    res.status(500).json({
+      error: "Registration failed",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 
@@ -82,7 +91,11 @@ router.post("/login", async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[login]", err.code, err.message);
+    res.status(500).json({
+      error: "Login failed",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 
@@ -111,7 +124,11 @@ router.put("/profile", authenticate, async (req, res) => {
       resumeLink: u.resume_link,
     });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[profile]", err.code, err.message);
+    res.status(500).json({
+      error: "Profile update failed",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
   }
 });
 

@@ -3,7 +3,20 @@ import { useState, useEffect, useCallback } from "react";
 import { api, saveSession, clearSession } from "./api.js";
 import './App.css';
 
-// ── Icons ──────────────────────────────────────────────────────────────────────
+// ── Utility Functions ──────────────────────────────────────────────
+function validateEmail(email) {
+  return email && email.includes('@') && email.includes('.');
+}
+
+function validateForm(fields, setError) {
+  for (const [key, value] of Object.entries(fields)) {
+    if (!value || value.trim() === '') {
+      setError(`${key.charAt(0).toUpperCase() + key.slice(1)} is required`);
+      return false;
+    }
+  }
+  return true;
+}
 const Logo = () => (
   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
     <path d="M3 5.5L10 2l7 3.5v9L10 18 3 14.5v-9z" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
@@ -56,17 +69,25 @@ function LoginForm({ role, onBack, onLoginSuccess }) {
   const navigate = useNavigate();
   const [mode, setMode]   = useState("login");
   const [form, setForm]   = useState({ name: "", email: "", password: "", confirm: "" });
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const login = async () => {
-    if (!form.email || !form.password) { setError("Please enter your email and password."); return; }
-    setLoading(true); setError("");
+    setError(null);
+    if (!validateForm({ email: form.email, password: form.password }, setError)) return;
+    if (!validateEmail(form.email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    setLoading(true);
     try {
       const { token, user } = await api.auth.login(form.email.trim(), form.password);
-      if (user.role !== role) { setError(`This account is registered as ${user.role}, not ${role}.`); return; }
+      if (user.role !== role) { 
+        setError(`This account is registered as ${user.role}, not ${role}.`);
+        return; 
+      }
       saveSession(token, user);
       onLoginSuccess(user);
       navigate(`/${role}`);
@@ -78,9 +99,18 @@ function LoginForm({ role, onBack, onLoginSuccess }) {
   };
 
   const createAccount = async () => {
-    if (!form.name || !form.email || !form.password || !form.confirm) { setError("Please complete all fields."); return; }
-    if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
-    setLoading(true); setError("");
+    setError(null);
+    const fields = mode === "signup" ? { name: form.name, email: form.email, password: form.password, confirm: form.confirm } : { email: form.email, password: form.password };
+    if (!validateForm(fields, setError)) return;
+    if (!validateEmail(form.email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    if (mode === "signup" && form.password !== form.confirm) { 
+      setError("Passwords do not match.");
+      return; 
+    }
+    setLoading(true);
     try {
       const { token, user } = await api.auth.register(form.name.trim(), form.email.trim(), form.password, role);
       saveSession(token, user);
@@ -95,7 +125,7 @@ function LoginForm({ role, onBack, onLoginSuccess }) {
 
   const switchMode = (nextMode) => {
     setForm({ name: "", email: "", password: "", confirm: "" });
-    setError("");
+    setError(null);
     setMode(nextMode);
   };
 
@@ -141,9 +171,14 @@ function LoginForm({ role, onBack, onLoginSuccess }) {
           </div>
         </div>
       )}
-      {error && <p style={{ color: "#f87171", fontSize: "13px", marginBottom: "8px" }}>{error}</p>}
+      {error && (
+        <div className="error-message">
+          <span className="error-icon">⚠️</span>
+          <span>{error}</span>
+        </div>
+      )}
       <button className="btn-primary" onClick={mode === "login" ? login : createAccount} disabled={loading} style={{ width: "100%", marginTop: "1rem", opacity: loading ? 0.7 : 1 }}>
-        {loading ? "Please wait…" : mode === "login" ? "Sign In →" : "Create Account →"}
+        {loading ? "Processing..." : mode === "login" ? "Sign In →" : "Create Account →"}
       </button>
       <div className="login-extra">
         {mode === "login" ? (
@@ -261,13 +296,27 @@ function Sidebar({ role, activePage, setActivePage }) {
 function ApplyModal({ project, onClose, onSubmit }) {
   const [form, setForm] = useState({ name: "", email: "", skills: "", resume: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const submit = () => {
-    if (!form.name || !form.email || !form.skills) return;
-    onSubmit({ ...form, projectId: project.id, projectTitle: project.title, status: "Pending", appliedAt: new Date().toLocaleDateString() });
-    setSubmitted(true);
+  const submit = async () => {
+    setError(null);
+    if (!validateForm({ name: form.name, email: form.email, skills: form.skills }, setError)) return;
+    if (!validateEmail(form.email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onSubmit({ ...form, projectId: project.id, projectTitle: project.title, status: "Pending", appliedAt: new Date().toLocaleDateString() });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.message || "Failed to submit application");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -295,6 +344,13 @@ function ApplyModal({ project, onClose, onSubmit }) {
                 <p>{project.description}</p>
                 <span className="skills-needed">Skills needed: {project.skills}</span>
               </div>
+
+              {error && (
+                <div className="error-message">
+                  <span className="error-icon">⚠️</span>
+                  <span>{error}</span>
+                </div>
+              )}
 
               <div className="form-row">
                 <div className="input-field">
@@ -332,8 +388,10 @@ function ApplyModal({ project, onClose, onSubmit }) {
             </div>
 
             <div className="modal-footer">
-              <button className="btn-ghost-cancel" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" onClick={submit}>Submit Application →</button>
+              <button className="btn-ghost-cancel" onClick={onClose} disabled={loading}>Cancel</button>
+              <button className="btn-primary" onClick={submit} disabled={loading}>
+                {loading ? "Submitting..." : "Submit Application →"}
+              </button>
             </div>
           </>
         )}
@@ -345,20 +403,35 @@ function ApplyModal({ project, onClose, onSubmit }) {
 // ── Create Project Modal ───────────────────────────────────────────────────────
 function CreateProjectModal({ onClose, onSubmit, ownerName }) {
   const [form, setForm] = useState({ title: "", skills: "", slots: "", description: "" });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const submit = () => {
-    if (!form.title || !form.skills || !form.slots || !form.description) return;
-    onSubmit({
-      ...form,
-      id: Date.now(),
-      faculty: ownerName || "Faculty",
-      slots: parseInt(form.slots),
-      type: "faculty",
-      createdBy: "faculty",
-      ownerName: ownerName || "Faculty"
-    });
+  const submit = async () => {
+    setError(null);
+    if (!validateForm({ title: form.title, skills: form.skills, slots: form.slots, description: form.description }, setError)) return;
+    if (isNaN(form.slots) || parseInt(form.slots) <= 0) {
+      setError("Please enter a valid number of slots");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onSubmit({
+        ...form,
+        id: Date.now(),
+        faculty: ownerName || "Faculty",
+        slots: parseInt(form.slots),
+        type: "faculty",
+        createdBy: "faculty",
+        ownerName: ownerName || "Faculty"
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to create project");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -373,6 +446,13 @@ function CreateProjectModal({ onClose, onSubmit, ownerName }) {
         </div>
 
         <div className="modal-body">
+          {error && (
+            <div className="error-message">
+              <span className="error-icon">⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="input-field">
             <label>Project Title *</label>
             <div className="input-wrap">
@@ -401,8 +481,10 @@ function CreateProjectModal({ onClose, onSubmit, ownerName }) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn-ghost-cancel" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={submit}>Create Project →</button>
+          <button className="btn-ghost-cancel" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="btn-primary" onClick={submit} disabled={loading}>
+            {loading ? "Creating..." : "Create Project →"}
+          </button>
         </div>
       </div>
     </div>
@@ -412,19 +494,34 @@ function CreateProjectModal({ onClose, onSubmit, ownerName }) {
 // ── Create Student Collaboration Project Modal ───────────────────────────────────────────────────────────
 function CreateStudentProjectModal({ onClose, onSubmit, ownerName }) {
   const [form, setForm] = useState({ title: "", skills: "", slots: "", description: "" });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const submit = () => {
-    if (!form.title || !form.skills || !form.slots || !form.description) return;
-    onSubmit({
-      ...form,
-      id: Date.now(),
-      slots: parseInt(form.slots),
-      type: "student",
-      createdBy: "student",
-      ownerName: ownerName || "Student"
-    });
+  const submit = async () => {
+    setError(null);
+    if (!validateForm({ title: form.title, skills: form.skills, slots: form.slots, description: form.description }, setError)) return;
+    if (isNaN(form.slots) || parseInt(form.slots) <= 0) {
+      setError("Please enter a valid number of slots");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onSubmit({
+        ...form,
+        id: Date.now(),
+        slots: parseInt(form.slots),
+        type: "student",
+        createdBy: "student",
+        ownerName: ownerName || "Student"
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to create project");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -439,6 +536,13 @@ function CreateStudentProjectModal({ onClose, onSubmit, ownerName }) {
         </div>
 
         <div className="modal-body">
+          {error && (
+            <div className="error-message">
+              <span className="error-icon">⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="input-field">
             <label>Project Title *</label>
             <div className="input-wrap">
@@ -467,8 +571,10 @@ function CreateStudentProjectModal({ onClose, onSubmit, ownerName }) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn-ghost-cancel" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={submit}>Create Project →</button>
+          <button className="btn-ghost-cancel" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className="btn-primary" onClick={submit} disabled={loading}>
+            {loading ? "Creating..." : "Create Project →"}
+          </button>
         </div>
       </div>
     </div>
@@ -478,18 +584,32 @@ function CreateStudentProjectModal({ onClose, onSubmit, ownerName }) {
 function EditProfileModal({ profile, onClose, onSave }) {
   const [form, setForm] = useState(profile);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const isSaveDisabled = !form.name?.trim() || !form.email?.trim();
+  const isSaveDisabled = !form.name?.trim() || !form.email?.trim() || loading;
 
-  const handleSave = () => {
-    if (isSaveDisabled) return;
-    onSave(form);
-    setSaved(true);
-    setTimeout(() => {
-      onClose();
-    }, 1200);
+  const handleSave = async () => {
+    setError(null);
+    if (!validateForm({ name: form.name, email: form.email }, setError)) return;
+    if (!validateEmail(form.email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onSave(form);
+      setSaved(true);
+      setTimeout(() => {
+        onClose();
+      }, 1200);
+    } catch (err) {
+      setError(err.message || "Failed to save profile");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -509,6 +629,13 @@ function EditProfileModal({ profile, onClose, onSave }) {
             </div>
 
             <div className="modal-body">
+              {error && (
+                <div className="error-message">
+                  <span className="error-icon">⚠️</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
               <div className="input-field">
                 <label>Name *</label>
                 <div className="input-wrap">
@@ -544,7 +671,7 @@ function EditProfileModal({ profile, onClose, onSave }) {
                 disabled={isSaveDisabled}
                 style={{ opacity: isSaveDisabled ? 0.5 : 1, cursor: isSaveDisabled ? "not-allowed" : "pointer" }}
               >
-                Save Changes →
+                {loading ? "Saving..." : "Save Changes →"}
               </button>
             </div>
           </>
@@ -554,7 +681,30 @@ function EditProfileModal({ profile, onClose, onSave }) {
   );
 }
 
-// ── Toast Notification System ─────────────────────────────────────────────────
+// ── Confirmation Modal ───────────────────────────────────────────────────────
+function ConfirmationModal({ isOpen, title, message, onConfirm, onCancel }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h2>{title}</h2>
+          </div>
+          <button className="modal-close" onClick={onCancel}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p style={{ color: "rgba(255,255,255,0.8)", margin: 0 }}>{message}</p>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-ghost-cancel" onClick={onCancel}>Cancel</button>
+          <button className="btn-danger" onClick={onConfirm}>Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function useToast() {
   const [toasts, setToasts] = useState([]);
 
@@ -723,7 +873,6 @@ function StudentDashboard({ profile, saveProfile }) {
   const { toasts, push: pushToast, dismiss: dismissToast } = useToast();
 
   const currentUserName  = profile.name  || "User";
-  const currentUserEmail = profile.email || "";
 
   // ── Load all data from backend ─────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -1398,10 +1547,11 @@ function FacultyDashboard({ profile, saveProfile }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const currentUserName  = profile.name  || "Faculty";
-  const currentUserEmail = profile.email || "";
 
   const [editProfile, setEditProfile] = useState(false);
   const { toasts, push: pushToast, dismiss: dismissToast } = useToast();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState(null);
 
   // ── Load all data from backend ─────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -1467,22 +1617,23 @@ function FacultyDashboard({ profile, saveProfile }) {
 
   // ── Delete a faculty project ───────────────────────────────────
   const deleteProject = async (project) => {
-    const appCount = applications.filter(a => a.projectId === project.id).length;
-    const warning  = appCount > 0
-      ? `"${project.title}" has ${appCount} application${appCount !== 1 ? "s" : ""}. Deleting it will remove all associated data. Continue?`
-      : `Delete "${project.title}"? This cannot be undone.`;
+    setProjectToDelete(project);
+    setShowDeleteConfirm(true);
+  };
 
-    if (!window.confirm(warning)) return;
-
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
     setSaving(true);
     try {
-      await api.projects.remove(project.id);
+      await api.projects.remove(projectToDelete.id);
       await fetchData();
-      pushToast(`"${project.title}" deleted`, "info");
+      pushToast(`"${projectToDelete.title}" deleted`, "info");
     } catch (err) {
       pushToast(err.message || "Failed to delete project", "error");
     } finally {
       setSaving(false);
+      setShowDeleteConfirm(false);
+      setProjectToDelete(null);
     }
   };
 
@@ -2037,6 +2188,17 @@ function FacultyDashboard({ profile, saveProfile }) {
           onClose={() => setShowNotifications(false)}
         />
       )}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        title="Delete Project"
+        message={projectToDelete ? (
+          applications.filter(a => a.projectId === projectToDelete.id).length > 0
+            ? `"${projectToDelete.title}" has ${applications.filter(a => a.projectId === projectToDelete.id).length} application${applications.filter(a => a.projectId === projectToDelete.id).length !== 1 ? "s" : ""}. Deleting it will remove all associated data. Continue?`
+            : `Delete "${projectToDelete.title}"? This cannot be undone.`
+        ) : ""}
+        onConfirm={confirmDeleteProject}
+        onCancel={() => { setShowDeleteConfirm(false); setProjectToDelete(null); }}
+      />
       <ToastContainer toasts={toasts} dismiss={dismissToast} />
     </div>
   );

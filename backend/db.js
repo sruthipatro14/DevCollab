@@ -12,4 +12,16 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+// ── Verify DB connection on startup ───────────────────────────────
+pool.getConnection()
+  .then(conn => {
+    console.log(`✅ MySQL connected → ${process.env.DB_NAME || "devcollab"}`);
+    conn.release();
+  })
+  .catch(err => {
+    console.error("❌ MySQL connection failed:", err.message);
+    console.error("   Check DB_HOST / DB_USER / DB_PASSWORD / DB_NAME in backend/.env");
+    process.exit(1); // crash fast so you see the error immediately
+  });
+
 export default pool;
