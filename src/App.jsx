@@ -1,0 +1,1225 @@
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { applicationStore } from "./store.js";
+import './App.css';
+
+// ── Icons ──────────────────────────────────────────────────────────────────────
+const Logo = () => (
+  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+    <path d="M3 5.5L10 2l7 3.5v9L10 18 3 14.5v-9z" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+    <path d="M10 2v16M3 5.5l7 3.5 7-3.5" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+  </svg>
+);
+
+const IconMail = () => (
+  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
+  </svg>
+);
+
+const IconLock = () => (
+  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+  </svg>
+);
+
+// ── Role Selection ────────────────────────────────────────────────────────────
+function RoleSelection({ onSelect }) {
+  return (
+    <>
+      <div className="login-brand">
+        <div className="brand-icon"><Logo /></div>
+        <span className="brand-text">Dev<span>Collab</span></span>
+      </div>
+      <div className="login-heading">
+        <h1>Welcome to DevCollab</h1>
+        <p>Select your role to continue</p>
+      </div>
+      <div className="role-grid">
+        <button className="role-btn student" onClick={() => onSelect("student")}>
+          <span className="role-emoji">🎓</span>
+          <span className="role-name">Student</span>
+          <span className="role-desc">Browse and apply to projects</span>
+        </button>
+        <button className="role-btn faculty" onClick={() => onSelect("faculty")}>
+          <span className="role-emoji">🏛️</span>
+          <span className="role-name">Faculty</span>
+          <span className="role-desc">Create and manage projects</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ── Login Form ─────────────────────────────────────────────────────────────────
+function LoginForm({ role, onBack }) {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({ email: "", password: "", confirm: "" });
+
+  const defaultAccounts = {
+    student: [{ email: "student@demo.com", password: "1234" }],
+    faculty: [{ email: "faculty@demo.com", password: "1234" }],
+  };
+
+  const getStoredAccounts = () => {
+    const raw = localStorage.getItem("devcollabAccounts");
+    if (!raw) return { student: [], faculty: [] };
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return { student: [], faculty: [] };
+    }
+  };
+
+  const saveStoredAccounts = (accounts) => {
+    localStorage.setItem("devcollabAccounts", JSON.stringify(accounts));
+  };
+
+  const accounts = {
+    student: [...defaultAccounts.student, ...getStoredAccounts().student],
+    faculty: [...defaultAccounts.faculty, ...getStoredAccounts().faculty],
+  };
+
+  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const login = () => {
+    if (!form.email || !form.password) {
+      alert("Please enter your email and password.");
+      return;
+    }
+
+    const matched = accounts[role].find(
+      (account) => account.email.toLowerCase() === form.email.trim().toLowerCase()
+    );
+
+    if (matched && matched.password === form.password) {
+      navigate(`/${role}`);
+    } else {
+      alert("Invalid credentials");
+    }
+  };
+
+  const createAccount = () => {
+    if (!form.email || !form.password || !form.confirm) {
+      alert("Please complete all fields.");
+      return;
+    }
+
+    if (form.password !== form.confirm) {
+      alert("Passwords do not match.");
+      return;
+    }
+
+    const stored = getStoredAccounts();
+    const existing = accounts[role].some(
+      (account) => account.email.toLowerCase() === form.email.trim().toLowerCase()
+    );
+
+    if (existing) {
+      alert("This account already exists. Please sign in.");
+      return;
+    }
+
+    const updated = {
+      ...stored,
+      [role]: [...stored[role], { email: form.email.trim(), password: form.password }],
+    };
+
+    saveStoredAccounts(updated);
+    navigate(`/${role}`);
+  };
+
+  const switchMode = (nextMode) => {
+    setForm({ email: "", password: "", confirm: "" });
+    setMode(nextMode);
+  };
+
+  return (
+    <>
+      <button type="button" className="back-button" onClick={onBack}>← Back</button>
+      <div className="login-brand">
+        <div className="brand-icon"><Logo /></div>
+        <span className="brand-text">Dev<span>Collab</span></span>
+      </div>
+      <div className="login-heading">
+        <h1>{mode === "login" ? `${role === "student" ? "Student" : "Faculty"} Login` : `Create ${role === "student" ? "Student" : "Faculty"} Account`}</h1>
+        <p>{mode === "login" ? `Sign in to access your ${role} workspace` : `Create a new ${role} account to start collaborating`}</p>
+      </div>
+      <div className="input-field">
+        <label>Email</label>
+        <div className="input-wrap">
+          <span className="input-icon"><IconMail /></span>
+          <input name="email" type="email" placeholder={`${role}@demo.com`} value={form.email} onChange={handle} />
+        </div>
+      </div>
+      <div className="input-field">
+        <label>{mode === "login" ? "Password" : "Password"}</label>
+        <div className="input-wrap">
+          <span className="input-icon"><IconLock /></span>
+          <input name="password" type="password" placeholder="••••••••" value={form.password} onChange={handle} />
+        </div>
+      </div>
+      {mode === "signup" && (
+        <div className="input-field">
+          <label>Confirm Password</label>
+          <div className="input-wrap">
+            <span className="input-icon"><IconLock /></span>
+            <input name="confirm" type="password" placeholder="••••••••" value={form.confirm} onChange={handle} />
+          </div>
+        </div>
+      )}
+      <button className="btn-primary" onClick={mode === "login" ? login : createAccount} style={{ width: "100%", marginTop: "1rem" }}>
+        {mode === "login" ? "Sign In →" : "Create Account →"}
+      </button>
+      <div className="login-extra">
+        {mode === "login" ? (
+          <button type="button" className="link-button" onClick={() => switchMode("signup")}>
+            Don’t have an account? Create account
+          </button>
+        ) : (
+          <button type="button" className="link-button" onClick={() => switchMode("login")}>
+            Already have an account? Sign in
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function LoginFlow({ roleOverride }) {
+  const [selectedRole, setSelectedRole] = useState(roleOverride || null);
+  const [step, setStep] = useState(roleOverride ? "login" : "select");
+
+  const startLogin = (role) => {
+    setSelectedRole(role);
+    setStep("login");
+  };
+
+  const goBack = () => {
+    setStep("select");
+    setSelectedRole(null);
+  };
+
+  return (
+    <div className="login-page">
+      <div className="login-bg-grid" />
+      <div className="login-glow g1" />
+      <div className="login-glow g2" />
+      <div className="login-card">
+        <div className="login-panel" key={step}>
+          {step === "select" ? (
+            <RoleSelection onSelect={startLogin} />
+          ) : (
+            selectedRole && <LoginForm role={selectedRole} onBack={goBack} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────────────────
+function Sidebar({ role, activePage, setActivePage }) {
+  const navigate = useNavigate();
+  const isStudent = role === "student";
+
+  const mainItems = isStudent
+    ? [
+        { label: "Dashboard", icon: "⊞" },
+        { label: "Browse Projects", icon: "⬡" },
+        { label: "My Applications", icon: "⊕" },
+        { label: "My Collaborations", icon: "◈" },
+        { label: "Team", icon: "◎" },
+        { label: "Grades", icon: "★" },
+      ]
+    : [
+        { label: "Dashboard", icon: "⊞" },
+        { label: "Applications", icon: "⊕" },
+        { label: "My Projects", icon: "⬡" },
+        { label: "Students", icon: "◎" },
+        { label: "Reports", icon: "★" },
+      ];
+
+  const bottomItems = [{ label: "Profile", icon: "👤" }];
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-top">
+        <div className="sb-brand">
+          <div className="sb-logo"><Logo /></div>
+          <span>DevCollab</span>
+        </div>
+        <div className="sb-role-pill">
+          {isStudent ? "🎓 Student" : "🏛️ Faculty"}
+        </div>
+        <nav className="sb-nav">
+          {mainItems.map((item) => (
+            <div
+              className={`sb-nav-item ${activePage === item.label ? "active" : ""}`}
+              key={item.label}
+              onClick={() => setActivePage(item.label)}
+            >
+              <span className="sb-nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </nav>
+      </div>
+      <div className="sidebar-bottom-section">
+        <div className="sb-bottom">
+          {bottomItems.map((item) => (
+            <div
+              className={`sb-nav-item ${activePage === item.label ? "active" : ""}`}
+              key={item.label}
+              onClick={() => setActivePage(item.label)}
+            >
+              <span className="sb-nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+        <button className="sb-logout" onClick={() => navigate("/")} style={{ marginTop: "12px" }}>← Log out</button>
+      </div>
+    </aside>
+  );
+}
+
+// ── Apply Modal ────────────────────────────────────────────────────────────────
+function ApplyModal({ project, onClose, onSubmit }) {
+  const [form, setForm] = useState({ name: "", email: "", skills: "", resume: "", message: "" });
+  const [submitted, setSubmitted] = useState(false);
+
+  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const submit = () => {
+    if (!form.name || !form.email || !form.skills) return;
+    onSubmit({ ...form, projectId: project.id, projectTitle: project.title, status: "Pending", appliedAt: new Date().toLocaleDateString() });
+    setSubmitted(true);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        {submitted ? (
+          <div className="modal-success">
+            <div className="success-icon">✓</div>
+            <h2>Application Sent!</h2>
+            <p>Your application for <strong>{project.title}</strong> has been submitted.</p>
+            <button className="btn-primary" onClick={onClose}>Close</button>
+          </div>
+        ) : (
+          <>
+            <div className="modal-header">
+              <div>
+                <h2>Apply for Project</h2>
+                <p className="modal-sub">{project.title} · {project.faculty || project.ownerName}</p>
+              </div>
+              <button className="modal-close" onClick={onClose}>✕</button>
+            </div>
+
+            <div className="modal-body">
+              <div className="modal-project-info">
+                <p>{project.description}</p>
+                <span className="skills-needed">Skills needed: {project.skills}</span>
+              </div>
+
+              <div className="form-row">
+                <div className="input-field">
+                  <label>Full Name *</label>
+                  <div className="input-wrap">
+                    <input name="name" placeholder="Alex Kumar" value={form.name} onChange={handle} />
+                  </div>
+                </div>
+                <div className="input-field">
+                  <label>Email *</label>
+                  <div className="input-wrap">
+                    <input name="email" type="email" placeholder="alex@university.edu" value={form.email} onChange={handle} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="input-field">
+                <label>Your Skills *</label>
+                <div className="input-wrap">
+                  <input name="skills" placeholder="e.g. Python, React, Machine Learning" value={form.skills} onChange={handle} />
+                </div>
+              </div>
+
+              <div className="input-field">
+                <label>Resume Link</label>
+                <div className="input-wrap">
+                  <input name="resume" placeholder="https://drive.google.com/..." value={form.resume} onChange={handle} />
+                </div>
+              </div>
+
+              <div className="input-field">
+                <label>Why this project?</label>
+                <textarea name="message" className="modal-textarea" placeholder="Tell the faculty why you're a great fit..." value={form.message} onChange={handle} rows={3} />
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-ghost-cancel" onClick={onClose}>Cancel</button>
+              <button className="btn-primary" onClick={submit}>Submit Application →</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Create Project Modal ───────────────────────────────────────────────────────
+function CreateProjectModal({ onClose, onSubmit }) {
+  const [form, setForm] = useState({ title: "", skills: "", slots: "", description: "" });
+
+  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const submit = () => {
+    if (!form.title || !form.skills || !form.slots || !form.description) return;
+    onSubmit({
+      ...form,
+      id: Date.now(),
+      faculty: "Current Faculty",
+      slots: parseInt(form.slots),
+      type: "faculty",
+      createdBy: "faculty",
+      ownerName: "Current Faculty"
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h2>Create New Project</h2>
+            <p className="modal-sub">Post a project for students to apply</p>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body">
+          <div className="input-field">
+            <label>Project Title *</label>
+            <div className="input-wrap">
+              <input name="title" placeholder="e.g. AI Research Assistant" value={form.title} onChange={handle} />
+            </div>
+          </div>
+
+          <div className="input-field">
+            <label>Skills Required *</label>
+            <div className="input-wrap">
+              <input name="skills" placeholder="e.g. Python, ML, NLP" value={form.skills} onChange={handle} />
+            </div>
+          </div>
+
+          <div className="input-field">
+            <label>Available Slots *</label>
+            <div className="input-wrap">
+              <input name="slots" type="number" placeholder="e.g. 3" value={form.slots} onChange={handle} />
+            </div>
+          </div>
+
+          <div className="input-field">
+            <label>Project Description *</label>
+            <textarea name="description" className="modal-textarea" placeholder="Describe the project requirements and goals..." value={form.description} onChange={handle} rows={4} />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={submit}>Create Project →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Create Student Collaboration Project Modal ───────────────────────────────────────────────────────────
+function CreateStudentProjectModal({ onClose, onSubmit }) {
+  const [form, setForm] = useState({ title: "", skills: "", slots: "", description: "" });
+
+  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const submit = () => {
+    if (!form.title || !form.skills || !form.slots || !form.description) return;
+    onSubmit({
+      ...form,
+      id: Date.now(),
+      slots: parseInt(form.slots),
+      type: "student",
+      createdBy: "student",
+      ownerName: "Alex Kumar"
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h2>Create Collaboration Project</h2>
+            <p className="modal-sub">Find teammates for your student project</p>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body">
+          <div className="input-field">
+            <label>Project Title *</label>
+            <div className="input-wrap">
+              <input name="title" placeholder="e.g. Mobile Game Development" value={form.title} onChange={handle} />
+            </div>
+          </div>
+
+          <div className="input-field">
+            <label>Skills Required *</label>
+            <div className="input-wrap">
+              <input name="skills" placeholder="e.g. Swift, Game Design, 3D Modeling" value={form.skills} onChange={handle} />
+            </div>
+          </div>
+
+          <div className="input-field">
+            <label>Team Size (Slots) *</label>
+            <div className="input-wrap">
+              <input name="slots" type="number" placeholder="e.g. 4" value={form.slots} onChange={handle} />
+            </div>
+          </div>
+
+          <div className="input-field">
+            <label>Project Description *</label>
+            <textarea name="description" className="modal-textarea" placeholder="Describe your project idea and what you're building..." value={form.description} onChange={handle} rows={4} />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={submit}>Create Project →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditProfileModal({ profile, onClose, onSave }) {
+  const [form, setForm] = useState(profile);
+  const [saved, setSaved] = useState(false);
+
+  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const isSaveDisabled = !form.name?.trim() || !form.email?.trim();
+
+  const handleSave = () => {
+    if (isSaveDisabled) return;
+    onSave(form);
+    setSaved(true);
+    setTimeout(() => {
+      onClose();
+    }, 1200);
+  };
+
+  return (
+    <div className="profile-modal-overlay" onClick={onClose}>
+      <div className="profile-modal-box" onClick={(e) => e.stopPropagation()}>
+        {saved ? (
+          <div className="modal-success" style={{ textAlign: "center", padding: "40px" }}>
+            <div className="success-icon" style={{ fontSize: "48px", marginBottom: "16px", color: "#34d399"}}>✓</div>
+            <h2>Saved Successfully!</h2>
+            <p style={{ color: "rgba(255,255,255,0.7)" }}>Your profile has been updated.</p>
+          </div>
+        ) : (
+          <>
+            <div className="modal-header">
+              <div><h2>Edit Profile</h2></div>
+              <button className="modal-close" onClick={onClose}>✕</button>
+            </div>
+
+            <div className="modal-body">
+              <div className="input-field">
+                <label>Name *</label>
+                <div className="input-wrap">
+                  <input name="name" placeholder="Your full name" value={form.name} onChange={handle} />
+                </div>
+              </div>
+
+              <div className="input-field">
+                <label>Email *</label>
+                <div className="input-wrap">
+                  <input name="email" type="email" placeholder="your@email.com" value={form.email} onChange={handle} />
+                </div>
+              </div>
+
+              <div className="input-field">
+                <label>Bio</label>
+                <textarea name="bio" className="modal-textarea" placeholder="Tell us about yourself..." value={form.bio} onChange={handle} rows={4} />
+              </div>
+
+              <div className="input-field">
+                <label>Resume Link</label>
+                <div className="input-wrap">
+                  <input name="resume" placeholder="https://drive.google.com/..." value={form.resume} onChange={handle} />
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-ghost-cancel" onClick={onClose}>Cancel</button>
+              <button 
+                className="btn-primary" 
+                onClick={handleSave} 
+                disabled={isSaveDisabled}
+                style={{ opacity: isSaveDisabled ? 0.5 : 1, cursor: isSaveDisabled ? "not-allowed" : "pointer" }}
+              >
+                Save Changes →
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Student Dashboard ──────────────────────────────────────────────────────────
+function StudentDashboard({ profile, saveProfile }) {
+  const [activePage, setActivePage] = useState("Dashboard");
+  const [applications, setApplications] = useState(applicationStore.applications);
+  const [projects, setProjects] = useState(applicationStore.projects);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
+
+  const currentUserName = profile.name || "User";
+  const currentUserEmail = profile.email || "student@demo.com";
+
+  const applyToProject = (app) => {
+    console.log("Applying to project:", app);
+    const updated = [...applicationStore.applications, app];
+    applicationStore.applications = updated;
+    setApplications(updated);
+  };
+
+  const createStudentProject = (project) => {
+    console.log("Creating student project:", project);
+    const updated = [...applicationStore.projects, project];
+    applicationStore.projects = updated;
+    setProjects(updated);
+    setShowCreateModal(false);
+  };
+
+  const handleApplicantResponse = (appIndex, status) => {
+    const updated = [...applicationStore.applications];
+    updated[appIndex] = { ...updated[appIndex], status };
+    applicationStore.applications = updated;
+    setApplications([...updated]);
+  };
+
+  const myApps = applications.filter((_, i) => i >= 0);
+  const myStudentProjects = projects.filter(p => p.type === "student" && p.ownerName === currentUserName);
+  const applicantsForMyProjects = applications.filter(app => 
+    myStudentProjects.some(p => p.id === app.projectId)
+  );
+
+  return (
+    <div className="app-layout">
+      <Sidebar role="student" activePage={activePage} setActivePage={setActivePage} />
+      <main className="main-content">
+
+        {/* ── Dashboard Page ── */}
+        {activePage === "Dashboard" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Student Dashboard</h1>
+                <p className="page-sub">Welcome back, {currentUserName} 👋 — Semester 5</p>
+              </div>
+              <div className="topbar-actions">
+                <button className="btn-ghost">🔔</button>
+                <div className="avatar" onClick={() => setActivePage("Profile")}>{profile.name ? profile.name.charAt(0).toUpperCase() : "U"}</div>
+              </div>
+            </div>
+            <div className="stats-grid">
+              <div className="stat-card accent-indigo"><span className="stat-val">{projects.length}</span><span className="stat-lbl">Open Projects</span></div>
+              <div className="stat-card accent-amber"><span className="stat-val">{myApps.length}</span><span className="stat-lbl">My Applications</span></div>
+              <div className="stat-card accent-teal"><span className="stat-val">{myApps.filter(a => a.status === "Accepted").length}</span><span className="stat-lbl">Accepted</span></div>
+              <div className="stat-card accent-green"><span className="stat-val">{myStudentProjects.length}</span><span className="stat-lbl">My Collaborations</span></div>
+            </div>
+            <div className="section-header">
+              <h2 className="section-title">Available Projects</h2>
+              <div className="topbar-actions">
+                <button className="btn-ghost-secondary" onClick={() => setShowCreateModal(true)}>+ Create Collaboration Project</button>
+                <button className="btn-primary" onClick={() => setActivePage("Browse Projects")}>Browse All →</button>
+              </div>
+            </div>
+            <div className="cards-grid">
+              {projects.slice(0, 3).map((p) => {
+                console.log("Dashboard project:", p);
+                const alreadyApplied = applications.some(a => a.projectId === p.id);
+                const isFacultyProject = p.type === "faculty";
+                const isOwnProject = p.ownerName && p.ownerName === currentUserName;
+                
+                return (
+                  <div className="p-card" key={p.id}>
+                    <div className={`p-tag ${isFacultyProject ? "tag-indigo" : "tag-teal"}`}>
+                      {isFacultyProject ? "Faculty" : "Student"}
+                    </div>
+                    <h3 className="p-name">{p.title}</h3>
+                    <p className="p-due">{isFacultyProject ? p.faculty : p.ownerName} · {p.slots} slots</p>
+                    <p className="p-desc">{p.description}</p>
+                    {isOwnProject && (
+                      <button className="btn-ghost-secondary" onClick={() => setActivePage("My Collaborations")}>Manage →</button>
+                    )}
+                    {!isOwnProject && alreadyApplied && (
+                      <span className="applied-badge">✓ Applied</span>
+                    )}
+                    {!isOwnProject && !alreadyApplied && (
+                      <button className="btn-apply" onClick={() => {
+                        console.log("Dashboard Apply Now clicked, project:", p);
+                        setSelectedProject(p);
+                      }}>Apply Now →</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* ── Browse Projects Page ── */}
+        {activePage === "Browse Projects" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Browse Projects</h1>
+                <p className="page-sub">Find and apply to faculty and student collaboration projects</p>
+              </div>
+            </div>
+            <div className="projects-list">
+              {projects.map((p) => {
+                const alreadyApplied = applications.some(a => a.projectId === p.id);
+                const isFacultyProject = p.type === "faculty";
+                const isOwnProject = p.ownerName && p.ownerName === currentUserName;
+                const projectApplicants = applications.filter(a => a.projectId === p.id);
+                
+                return (
+                  <div className="project-row" key={p.id}>
+                    <div className="project-row-left">
+                      <div className="project-row-icon">⬡</div>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <h3 className="project-row-title">{p.title}</h3>
+                          <span className={`project-type-badge ${isFacultyProject ? "badge-faculty" : "badge-student"}`}>
+                            {isFacultyProject ? "Faculty Project" : "Student Collaboration"}
+                          </span>
+                        </div>
+                        <p className="project-row-meta">
+                          {isFacultyProject ? p.faculty : p.ownerName} · {p.slots} open slots
+                          {projectApplicants.length > 0 && !isFacultyProject && (
+                            <span> · {projectApplicants.length} applicant{projectApplicants.length !== 1 ? "s" : ""}</span>
+                          )}
+                        </p>
+                        <p className="project-row-desc">{p.description}</p>
+                        <div className="skills-tags">
+                          {p.skills.split(",").map(s => (
+                            <span className="skill-tag" key={s}>{s.trim()}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="project-row-right">
+                      {isOwnProject ? (
+                        <button className="btn-ghost-secondary" onClick={() => setActivePage("My Collaborations")}>
+                          Manage →
+                        </button>
+                      ) : isFacultyProject ? (
+                        alreadyApplied
+                          ? <span className="applied-badge">✓ Applied</span>
+                          : <button className="btn-apply" onClick={() => setSelectedProject(p)}>Apply Now →</button>
+                      ) : (
+                        alreadyApplied
+                          ? <span className="applied-badge">✓ Applied</span>
+                          : <button className="btn-apply" onClick={() => {
+                              console.log("Browse Projects Apply Now clicked, project:", p);
+                              setSelectedProject(p);
+                            }}>Apply Now →</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* ── My Applications Page ── */}
+        {activePage === "My Applications" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">My Applications</h1>
+                <p className="page-sub">Track the status of your project applications</p>
+              </div>
+            </div>
+            {applications.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📭</div>
+                <h3>No applications yet</h3>
+                <p>Browse projects and apply to get started</p>
+                <button className="btn-primary" onClick={() => setActivePage("Browse Projects")}>Browse Projects</button>
+              </div>
+            ) : (
+              <div className="applications-list">
+                {applications.map((app, i) => (
+                  <div className="app-row" key={i}>
+                    <div className="app-row-left">
+                      <div className={`status-dot ${app.status === "Accepted" ? "dot-green" : app.status === "Rejected" ? "dot-red" : "dot-amber"}`} />
+                      <div>
+                        <h3 className="app-row-title">{app.projectTitle}</h3>
+                        <p className="app-row-meta">Applied on {app.appliedAt} · Skills: {app.skills}</p>
+                      </div>
+                    </div>
+                    <span className={`status-badge badge-${app.status === "Accepted" ? "green" : app.status === "Rejected" ? "red" : "amber"}`}>
+                      {app.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── My Collaborations Page ── */}
+        {activePage === "My Collaborations" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">My Collaborations</h1>
+                <p className="page-sub">Manage projects you've created and review applicants</p>
+              </div>
+              <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Create Project</button>
+            </div>
+            
+            {myStudentProjects.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">🚀</div>
+                <h3>No collaboration projects yet</h3>
+                <p>Create a project to find teammates for your ideas</p>
+                <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Create Collaboration Project</button>
+              </div>
+            ) : (
+              <>
+                {myStudentProjects.map((p) => {
+                  const projectApplicants = applicantsForMyProjects.filter(a => a.projectId === p.id);
+                  const pendingApplicants = projectApplicants.filter(a => a.status === "Pending");
+                  const acceptedApplicants = projectApplicants.filter(a => a.status === "Accepted");
+                  
+                  return (
+                    <div key={p.id}>
+                      <div className="collab-project-card">
+                        <div className="collab-project-header">
+                          <div>
+                            <h3 className="collab-project-title">{p.title}</h3>
+                            <p className="collab-project-meta">
+                              {p.slots} slots · {acceptedApplicants.length} accepted · {projectApplicants.length} total applicants
+                            </p>
+                          </div>
+                          <span className={`status-badge ${pendingApplicants.length > 0 ? "badge-amber" : "badge-green"}`}>
+                            {pendingApplicants.length > 0 ? `${pendingApplicants.length} Pending` : "All Reviewed"}
+                          </span>
+                        </div>
+                        
+                        <div className="collab-project-body">
+                          <p className="collab-desc">{p.description}</p>
+                          <div className="skills-tags" style={{marginTop: "12px"}}>
+                            {p.skills.split(",").map(s => (
+                              <span className="skill-tag" key={s}>{s.trim()}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {projectApplicants.length === 0 ? (
+                        <div className="empty-state" style={{marginBottom: "24px"}}>
+                          <div className="empty-icon">📭</div>
+                          <p>No applicants yet</p>
+                        </div>
+                      ) : (
+                        <div className="faculty-apps-list">
+                          {projectApplicants.map((app, i) => (
+                            <div className="faculty-app-card" key={i}>
+                              <div className="fac-app-top">
+                                <div className="fac-app-avatar">{app.name?.charAt(0) || "?"}</div>
+                                <div className="fac-app-info">
+                                  <h3 className="fac-app-name">{app.name}</h3>
+                                  <p className="fac-app-meta">{app.email} · Applied {app.appliedAt}</p>
+                                </div>
+                                <span className={`status-badge badge-${app.status === "Accepted" ? "green" : app.status === "Rejected" ? "red" : "amber"}`}>
+                                  {app.status}
+                                </span>
+                              </div>
+
+                              <div className="fac-app-body">
+                                <div className="fac-app-field">
+                                  <span className="fac-field-label">Skills</span>
+                                  <span className="fac-field-value">{app.skills}</span>
+                                </div>
+                                {app.resume && (
+                                  <div className="fac-app-field">
+                                    <span className="fac-field-label">Resume</span>
+                                    <a href={app.resume} target="_blank" rel="noreferrer" className="fac-field-link">View Resume ↗</a>
+                                  </div>
+                                )}
+                                {app.message && (
+                                  <div className="fac-app-field full">
+                                    <span className="fac-field-label">Message</span>
+                                    <span className="fac-field-value">{app.message}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {app.status === "Pending" && (
+                                <div className="fac-app-actions">
+                                  <button 
+                                    className="btn-accept" 
+                                    onClick={() => {
+                                      const appIndex = applications.indexOf(app);
+                                      handleApplicantResponse(appIndex, "Accepted");
+                                    }}
+                                  >
+                                    ✓ Accept
+                                  </button>
+                                  <button 
+                                    className="btn-reject" 
+                                    onClick={() => {
+                                      const appIndex = applications.indexOf(app);
+                                      handleApplicantResponse(appIndex, "Rejected");
+                                    }}
+                                  >
+                                    ✕ Reject
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── Profile Page ── */}
+        {activePage === "Profile" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">My Profile</h1>
+                <p className="page-sub">View and manage your profile information</p>
+              </div>
+            </div>
+
+            <div className="profile-card">
+              <div className="profile-avatar">
+                {profile.name ? profile.name.charAt(0).toUpperCase() : "U"}
+              </div>
+              <div className="profile-info">
+                <h2 className="profile-name">{profile.name || "Your Name"}</h2>
+                <p className="profile-email">{profile.email || "your@email.com"}</p>
+                <p className="profile-bio">{profile.bio || "Add a short bio about yourself to let others know your skills and interests..."}</p>
+                {profile.resume && (
+                  <a href={profile.resume} target="_blank" rel="noreferrer" className="btn-resume">
+                    View Resume ↗
+                  </a>
+                )}
+              </div>
+              <button className="btn-primary btn-edit-profile" onClick={() => setEditProfile(true)}>
+                Edit Profile
+              </button>
+            </div>
+          </>
+        )}
+
+      </main>
+
+      {selectedProject && (
+        <ApplyModal
+          project={selectedProject}
+          onClose={() => setSelectedProject(null)}
+          onSubmit={(app) => { applyToProject(app); setSelectedProject(null); }}
+        />
+      )}
+
+      {showCreateModal && (
+        <CreateStudentProjectModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={createStudentProject}
+        />
+      )}
+
+      {editProfile && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setEditProfile(false)}
+          onSave={saveProfile}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Faculty Dashboard ──────────────────────────────────────────────────────────
+function FacultyDashboard({ profile, saveProfile }) {
+  const [activePage, setActivePage] = useState("Dashboard");
+  const [applications, setApplications] = useState(applicationStore.applications);
+  const [projects, setProjects] = useState(applicationStore.projects.filter(p => p.type === "faculty"));
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const currentUserName = profile.name || "Prof. Johnson";
+  const currentUserEmail = profile.email || "faculty@demo.com";
+
+  const [editProfile, setEditProfile] = useState(false);
+
+  const updateStatus = (index, status) => {
+    const updated = [...applicationStore.applications];
+    updated[index] = { ...updated[index], status };
+    applicationStore.applications = updated;
+    setApplications([...updated]);
+  };
+
+  const refresh = () => {
+    setApplications([...applicationStore.applications]);
+    setProjects(applicationStore.projects.filter(p => p.type === "faculty"));
+  };
+
+  const createProject = (project) => {
+    console.log("Creating faculty project:", project);
+    const updated = [...applicationStore.projects, project];
+    applicationStore.projects = updated;
+    setProjects(updated.filter(p => p.type === "faculty"));
+    setShowCreateModal(false);
+  };
+
+  return (
+    <div className="app-layout">
+      <Sidebar role="faculty" activePage={activePage} setActivePage={(p) => { setActivePage(p); refresh(); }} />
+      <main className="main-content">
+
+        {/* ── Dashboard Page ── */}
+        {activePage === "Dashboard" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Faculty Dashboard</h1>
+                <p className="page-sub">Good morning, Prof. Johnson 👋</p>
+              </div>
+              <div className="topbar-actions">
+                <button className="btn-ghost">🔔</button>
+                <div className="avatar fac" onClick={() => setActivePage("Profile")}>{profile.name ? profile.name.charAt(0).toUpperCase() : "P"}</div>
+              </div>
+            </div>
+            <div className="stats-grid">
+              <div className="stat-card accent-indigo"><span className="stat-val">{applications.length}</span><span className="stat-lbl">Total Applications</span></div>
+              <div className="stat-card accent-amber"><span className="stat-val">{applications.filter(a => a.status === "Pending").length}</span><span className="stat-lbl">Pending Review</span></div>
+              <div className="stat-card accent-green"><span className="stat-val">{applications.filter(a => a.status === "Accepted").length}</span><span className="stat-lbl">Accepted</span></div>
+              <div className="stat-card accent-teal"><span className="stat-val">{projects.length}</span><span className="stat-lbl">Active Projects</span></div>
+            </div>
+            <div className="section-header">
+              <h2 className="section-title">Recent Applications</h2>
+              <button className="btn-primary" onClick={() => { setActivePage("Applications"); refresh(); }}>View All →</button>
+            </div>
+            {applications.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📭</div>
+                <h3>No applications yet</h3>
+                <p>Students haven't applied to your projects yet</p>
+              </div>
+            ) : (
+              <div className="applications-list">
+                {applications.slice(0, 3).map((app, i) => (
+                  <div className="app-row" key={i}>
+                    <div className="app-row-left">
+                      <div className={`status-dot ${app.status === "Accepted" ? "dot-green" : app.status === "Rejected" ? "dot-red" : "dot-amber"}`} />
+                      <div>
+                        <h3 className="app-row-title">{app.name} → {app.projectTitle}</h3>
+                        <p className="app-row-meta">{app.email} · {app.skills}</p>
+                      </div>
+                    </div>
+                    <span className={`status-badge badge-${app.status === "Accepted" ? "green" : app.status === "Rejected" ? "red" : "amber"}`}>
+                      {app.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Applications Page ── */}
+        {activePage === "Applications" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Applications</h1>
+                <p className="page-sub">Review and manage student applications</p>
+              </div>
+            </div>
+            {applications.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📭</div>
+                <h3>No applications yet</h3>
+                <p>Students haven't applied to your projects yet</p>
+              </div>
+            ) : (
+              <div className="faculty-apps-list">
+                {applications.map((app, i) => (
+                  <div className="faculty-app-card" key={i}>
+                    <div className="fac-app-top">
+                      <div className="fac-app-avatar">{app.name?.charAt(0) || "?"}</div>
+                      <div className="fac-app-info">
+                        <h3 className="fac-app-name">{app.name}</h3>
+                        <p className="fac-app-meta">{app.email} · Applied {app.appliedAt}</p>
+                      </div>
+                      <span className={`status-badge badge-${app.status === "Accepted" ? "green" : app.status === "Rejected" ? "red" : "amber"}`}>
+                        {app.status}
+                      </span>
+                    </div>
+
+                    <div className="fac-app-body">
+                      <div className="fac-app-field">
+                        <span className="fac-field-label">Project</span>
+                        <span className="fac-field-value">{app.projectTitle}</span>
+                      </div>
+                      <div className="fac-app-field">
+                        <span className="fac-field-label">Skills</span>
+                        <span className="fac-field-value">{app.skills}</span>
+                      </div>
+                      {app.resume && (
+                        <div className="fac-app-field">
+                          <span className="fac-field-label">Resume</span>
+                          <a href={app.resume} target="_blank" rel="noreferrer" className="fac-field-link">View Resume ↗</a>
+                        </div>
+                      )}
+                      {app.message && (
+                        <div className="fac-app-field full">
+                          <span className="fac-field-label">Message</span>
+                          <span className="fac-field-value">{app.message}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {app.status === "Pending" && (
+                      <div className="fac-app-actions">
+                        <button className="btn-accept" onClick={() => updateStatus(i, "Accepted")}>✓ Accept</button>
+                        <button className="btn-reject" onClick={() => updateStatus(i, "Rejected")}>✕ Reject</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── My Projects Page ── */}
+        {activePage === "My Projects" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">My Projects</h1>
+                <p className="page-sub">Projects you've posted for students</p>
+              </div>
+              <button className="btn-primary" onClick={() => setShowCreateModal(true)}>+ Add Project</button>
+            </div>
+            <div className="cards-grid">
+              {projects.map((p) => (
+                <div className="p-card" key={p.id}>
+                  <div className="p-tag tag-indigo">{p.skills.split(",")[0]}</div>
+                  <h3 className="p-name">{p.title}</h3>
+                  <p className="p-due">{p.slots} open slots</p>
+                  <p className="p-desc">{p.description}</p>
+                  <div className="skills-tags" style={{marginTop: "8px"}}>
+                    {p.skills.split(",").map(s => (
+                      <span className="skill-tag" key={s}>{s.trim()}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ── Profile Page ── */}
+        {activePage === "Profile" && (
+          <div className="profile-card">
+            <div className="profile-avatar">
+              {profile.name ? profile.name.charAt(0).toUpperCase() : "P"}
+            </div>
+            <div className="profile-info">
+              <h2 className="profile-name">{profile.name || "Your Name"}</h2>
+              <p className="profile-email">{profile.email || "your@email.com"}</p>
+              <p className="profile-bio">{profile.bio || "Add a short bio about yourself and your research interests..."}</p>
+              {profile.resume && (
+                <a href={profile.resume} target="_blank" rel="noreferrer" className="btn-resume">
+                  View Profile Link ↗
+                </a>
+              )}
+            </div>
+            <button className="btn-primary btn-edit-profile" onClick={() => setEditProfile(true)}>
+              Edit Profile
+            </button>
+          </div>
+        )}
+
+      </main>
+
+      {showCreateModal && (
+        <CreateProjectModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={createProject}
+        />
+      )}
+
+      {editProfile && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setEditProfile(false)}
+          onSave={saveProfile}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem("devcollabProfile");
+    return saved ? JSON.parse(saved) : {
+      name: "Alex Kumar",
+      email: "student@demo.com",
+      bio: "",
+      resume: ""
+    };
+  });
+
+  const saveProfile = (data) => {
+    setProfile(data);
+    localStorage.setItem("devcollabProfile", JSON.stringify(data));
+  };
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LoginFlow />} />
+        <Route path="/login/student" element={<LoginFlow roleOverride="student" />} />
+        <Route path="/login/faculty" element={<LoginFlow roleOverride="faculty" />} />
+        <Route path="/student" element={<StudentDashboard profile={profile} saveProfile={saveProfile} />} />
+        <Route path="/faculty" element={<FacultyDashboard profile={profile} saveProfile={saveProfile} />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
