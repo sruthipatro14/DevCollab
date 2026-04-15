@@ -1,5 +1,6 @@
 -- Run this once to set up your database
 -- mysql -u root -p < backend/schema.sql
+-- dialect: mysql
 
 CREATE DATABASE IF NOT EXISTS devcollab;
 USE devcollab;

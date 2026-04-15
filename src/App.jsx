@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import { FiBell } from "react-icons/fi";
 import { api, saveSession, clearSession } from "./api.js";
 import './App.css';
 
@@ -996,7 +997,7 @@ function StudentDashboard({ profile, saveProfile }) {
               </div>
               <div className="topbar-actions">
                 <button className="btn-ghost notif-bell" onClick={() => setShowNotifications(true)}>
-                  🔔
+                  <FiBell size={18} />
                   {applications.some(a => a.status !== "Pending") && (
                     <span className="notif-dot" />
                   )}
@@ -1684,7 +1685,7 @@ function FacultyDashboard({ profile, saveProfile }) {
               </div>
               <div className="topbar-actions">
                 <button className="btn-ghost notif-bell" onClick={() => setShowNotifications(true)}>
-                  🔔
+                  <FiBell size={18} />
                   {applications.some(a => a.status === "Pending") && (
                     <span className="notif-dot" />
                   )}
