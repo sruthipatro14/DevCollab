@@ -53,12 +53,12 @@ function RoleSelection({ onSelect }) {
         <button className="role-btn student" onClick={() => onSelect("student")}>
           <span className="role-emoji">🎓</span>
           <span className="role-name">Student</span>
-          <span className="role-desc">Browse and apply to projects</span>
+          <span className="role-desc"></span>
         </button>
         <button className="role-btn faculty" onClick={() => onSelect("faculty")}>
           <span className="role-emoji">🏛️</span>
           <span className="role-name">Faculty</span>
-          <span className="role-desc">Create and manage projects</span>
+          <span className="role-desc"></span>
         </button>
       </div>
     </>
@@ -1681,7 +1681,7 @@ function FacultyDashboard({ profile, saveProfile }) {
             <div className="topbar">
               <div>
                 <h1 className="page-title">Faculty Dashboard</h1>
-                <p className="page-sub">Welcome back, {currentUserName} 👋</p>
+                <p className="page-sub">Welcome back, {currentUserName} </p>
               </div>
               <div className="topbar-actions">
                 <button className="btn-ghost notif-bell" onClick={() => setShowNotifications(true)}>
