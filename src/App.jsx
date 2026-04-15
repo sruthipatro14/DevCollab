@@ -259,7 +259,7 @@ function Sidebar({ role, activePage, setActivePage }) {
           <span>DevCollab</span>
         </div>
         <div className="sb-role-pill">
-          {isStudent ? "🎓 Student" : "🏛️ Faculty"}
+          {isStudent ? "Student" : "Faculty"}
         </div>
         <nav className="sb-nav">
           {mainItems.map((item) => (
