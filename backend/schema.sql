@@ -42,8 +42,15 @@ CREATE TABLE IF NOT EXISTS applications (
   rating         DECIMAL(3,1),
   feedback       TEXT,
   skills_gained  VARCHAR(500),
+  progress       INT DEFAULT 0,
+  remarks        TEXT,
   applied_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (student_id) REFERENCES users(id)    ON DELETE CASCADE,
   UNIQUE KEY unique_application (project_id, student_id)
 );
+
+-- Migration: add progress/remarks to existing installs (safe to run multiple times)
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS progress INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS remarks  TEXT;

@@ -240,12 +240,14 @@ function Sidebar({ role, activePage, setActivePage }) {
         { label: "My Collaborations", icon: "◈" },
         { label: "Team", icon: "◎" },
         { label: "Grades", icon: "★" },
+        { label: "My Progress", icon: "◉" },
       ]
     : [
         { label: "Dashboard", icon: "⊞" },
         { label: "Applications", icon: "⊕" },
         { label: "My Projects", icon: "⬡" },
         { label: "Students", icon: "◎" },
+        { label: "Evaluate Students", icon: "◉" },
         { label: "Reports", icon: "★" },
       ];
 
@@ -706,6 +708,73 @@ function ConfirmationModal({ isOpen, title, message, onConfirm, onCancel }) {
     </div>
   );
 }
+// ── Evaluate Card (Faculty) ───────────────────────────────────────────────────
+function EvaluateCard({ app, onSave, saving }) {
+  const [progress, setProgress] = useState(app.progress ?? 0);
+  const [remarks, setRemarks]   = useState(app.remarks  ?? "");
+  const pct   = Math.min(100, Math.max(0, parseInt(progress) || 0));
+  const color = pct >= 70 ? "#34d399" : pct >= 40 ? "#fbbf24" : "#ef4444";
+
+  return (
+    <div className="evaluate-card">
+      <div className="evaluate-card-header">
+        <div className="fac-app-avatar">{app.name?.charAt(0)?.toUpperCase() || "?"}</div>
+        <div className="evaluate-header-info">
+          <h3 className="evaluate-student-name">{app.name}</h3>
+          <p className="evaluate-project-meta">{app.projectTitle} · {app.email}</p>
+        </div>
+        <span className="progress-pct-badge" style={{ color, borderColor: color, background: `${color}18` }}>
+          {pct}%
+        </span>
+      </div>
+
+      <div className="progress-bar-wrap" style={{ marginBottom: "var(--spacing-lg)" }}>
+        <div className="progress-bar-track">
+          <div className="progress-bar-fill" style={{ width: `${pct}%`, background: color }} />
+        </div>
+      </div>
+
+      <div className="evaluate-inputs">
+        <div className="evaluate-input-row">
+          <div className="grade-input-wrap">
+            <label className="grade-input-label">Progress (0–100)</label>
+            <input
+              className="grade-input"
+              type="number"
+              min="0"
+              max="100"
+              value={progress}
+              onChange={(e) => setProgress(e.target.value)}
+              style={{ width: "110px" }}
+            />
+          </div>
+        </div>
+        <div className="grade-input-wrap" style={{ flex: 1 }}>
+          <label className="grade-input-label">Remarks</label>
+          <textarea
+            className="modal-textarea"
+            rows={3}
+            placeholder="e.g. Great progress on the ML pipeline, needs to improve documentation…"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--spacing-md)" }}>
+        <button
+          className="btn-primary"
+          disabled={saving}
+          onClick={() => onSave(app.id, pct, remarks)}
+          style={{ opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? "Saving…" : "Save Progress →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function useToast() {
   const [toasts, setToasts] = useState([]);
 
@@ -1447,6 +1516,70 @@ function StudentDashboard({ profile, saveProfile }) {
           </>
         )}
 
+        {/* ── My Progress Page ── */}
+        {activePage === "My Progress" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">My Progress</h1>
+                <p className="page-sub">Track your progress on accepted projects</p>
+              </div>
+            </div>
+
+            {applications.filter(a => a.status === "Accepted").length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📈</div>
+                <h3>No progress yet</h3>
+                <p>Get accepted to a project to see your progress here</p>
+                <button className="btn-primary" onClick={() => setActivePage("Browse Projects")}>Browse Projects</button>
+              </div>
+            ) : (
+              <div className="progress-grid">
+                {applications.filter(a => a.status === "Accepted").map((app) => {
+                  const pct = Math.min(100, Math.max(0, parseInt(app.progress) || 0));
+                  const color = pct >= 70 ? "#34d399" : pct >= 40 ? "#fbbf24" : "#ef4444";
+                  return (
+                    <div className="progress-card" key={app.id}>
+                      <div className="progress-card-header">
+                        <div className="progress-project-icon">⬡</div>
+                        <div className="progress-project-info">
+                          <h3 className="progress-project-title">{app.projectTitle}</h3>
+                          <p className="progress-project-meta">Accepted · {app.appliedAt}</p>
+                        </div>
+                        <span className="progress-pct-badge" style={{ color, borderColor: color, background: `${color}18` }}>
+                          {pct}%
+                        </span>
+                      </div>
+
+                      <div className="progress-bar-wrap">
+                        <div className="progress-bar-track">
+                          <div
+                            className="progress-bar-fill"
+                            style={{ width: `${pct}%`, background: color }}
+                          />
+                        </div>
+                        <div className="progress-bar-labels">
+                          <span style={{ color: "rgba(193,232,255,0.4)", fontSize: "11px", fontFamily: "JetBrains Mono, monospace" }}>0%</span>
+                          <span style={{ color: "rgba(193,232,255,0.4)", fontSize: "11px", fontFamily: "JetBrains Mono, monospace" }}>100%</span>
+                        </div>
+                      </div>
+
+                      {app.remarks ? (
+                        <div className="progress-remarks">
+                          <span className="progress-remarks-label">Faculty Remarks</span>
+                          <p className="progress-remarks-text">"{app.remarks}"</p>
+                        </div>
+                      ) : (
+                        <p className="progress-no-remarks">No remarks from faculty yet</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
         {/* ── Profile Page ── */}
         {activePage === "Profile" && (
           <>
@@ -2124,6 +2257,57 @@ function FacultyDashboard({ profile, saveProfile }) {
                 </div>
               );
             })()}
+          </>
+        )}
+
+        {/* ── Evaluate Students Page ── */}
+        {activePage === "Evaluate Students" && (
+          <>
+            <div className="topbar">
+              <div>
+                <h1 className="page-title">Evaluate Students</h1>
+                <p className="page-sub">Set progress and remarks for accepted students</p>
+              </div>
+              <div className="students-summary">
+                <span className="students-stat"><span className="students-stat-val">{applications.filter(a => a.status === "Accepted").length}</span> Accepted</span>
+                <span className="students-stat accent-green">
+                  <span className="students-stat-val">
+                    {applications.filter(a => a.status === "Accepted" && (a.progress || 0) > 0).length}
+                  </span> Evaluated
+                </span>
+              </div>
+            </div>
+
+            {applications.filter(a => a.status === "Accepted").length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📋</div>
+                <h3>No accepted students yet</h3>
+                <p>Accept applications first to start evaluating students</p>
+                <button className="btn-primary" onClick={() => setActivePage("Applications")}>View Applications</button>
+              </div>
+            ) : (
+              <div className="evaluate-list">
+                {applications.filter(a => a.status === "Accepted").map((app) => (
+                  <EvaluateCard
+                    key={app.id}
+                    app={app}
+                    onSave={async (id, progress, remarks) => {
+                      setSaving(true);
+                      try {
+                        await api.applications.updateProgress(id, { progress, remarks });
+                        await fetchData();
+                        pushToast(`Progress saved for ${app.name}`, "success");
+                      } catch (err) {
+                        pushToast(err.message || "Failed to save progress", "error");
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    saving={saving}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
 

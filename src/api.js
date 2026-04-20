@@ -49,9 +49,10 @@ export const api = {
 
   // ── Applications ─────────────────────────────────────────────────
   applications: {
-    getAll:  ()       => request("GET",    "/applications"),
-    submit:  (data)   => request("POST",   "/applications",     data),
-    update:  (id, data) => request("PATCH", `/applications/${id}`, data),
+    getAll:          ()           => request("GET",    "/applications"),
+    submit:          (data)       => request("POST",   "/applications",              data),
+    update:          (id, data)   => request("PATCH",  `/applications/${id}`,        data),
+    updateProgress:  (id, data)   => request("PUT",    `/applications/${id}/progress`, data),
   },
 };
 

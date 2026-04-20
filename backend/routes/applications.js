@@ -42,6 +42,8 @@ router.get("/", authenticate, async (req, res) => {
       rating:       a.rating,
       feedback:     a.feedback,
       skillsGained: a.skills_gained,
+      progress:     a.progress ?? 0,
+      remarks:      a.remarks || null,
       appliedAt:    new Date(a.applied_at).toLocaleDateString(),
     }));
 
@@ -90,6 +92,8 @@ router.post("/", authenticate, async (req, res) => {
       resume:       a.resume_link,
       message:      a.message,
       status:       a.status,
+      progress:     a.progress ?? 0,
+      remarks:      a.remarks || null,
       appliedAt:    new Date(a.applied_at).toLocaleDateString(),
     });
   } catch (err) {
@@ -105,6 +109,7 @@ router.post("/", authenticate, async (req, res) => {
 });
 
 // ── PATCH /api/applications/:id ────────────────────────────────────
+// Faculty: update status, rating, feedback, skillsGained
 router.patch("/:id", authenticate, async (req, res) => {
   if (req.user.role !== "faculty") {
     return res.status(403).json({ error: "Only faculty can update applications" });
@@ -143,11 +148,66 @@ router.patch("/:id", authenticate, async (req, res) => {
       rating:       a.rating,
       feedback:     a.feedback,
       skillsGained: a.skills_gained,
+      progress:     a.progress ?? 0,
+      remarks:      a.remarks || null,
     });
   } catch (err) {
     console.error("[PATCH /applications/:id]", err.message);
     res.status(500).json({
       error: "Failed to update application",
+      detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
+    });
+  }
+});
+
+// ── PUT /api/applications/:id/progress ────────────────────────────
+// Faculty: set progress (0-100) and remarks for an accepted student
+router.put("/:id/progress", authenticate, async (req, res) => {
+  if (req.user.role !== "faculty") {
+    return res.status(403).json({ error: "Only faculty can update progress" });
+  }
+
+  const { progress, remarks } = req.body;
+
+  if (progress === undefined || progress === null) {
+    return res.status(400).json({ error: "progress is required" });
+  }
+
+  const pct = parseInt(progress, 10);
+  if (isNaN(pct) || pct < 0 || pct > 100) {
+    return res.status(400).json({ error: "progress must be 0–100" });
+  }
+
+  try {
+    // Verify this application belongs to one of the faculty's projects
+    const [check] = await pool.execute(`
+      SELECT a.id FROM applications a
+      JOIN projects p ON a.project_id = p.id
+      WHERE a.id = ? AND p.owner_id = ?
+    `, [req.params.id, req.user.id]);
+
+    if (check.length === 0) return res.status(403).json({ error: "Forbidden" });
+
+    await pool.execute(
+      `UPDATE applications SET progress = ?, remarks = ? WHERE id = ?`,
+      [pct, remarks || null, req.params.id]
+    );
+
+    const [rows] = await pool.execute(
+      "SELECT id, progress, remarks FROM applications WHERE id = ?",
+      [req.params.id]
+    );
+
+    const a = rows[0];
+    res.json({
+      id:       a.id,
+      progress: a.progress,
+      remarks:  a.remarks,
+    });
+  } catch (err) {
+    console.error("[PUT /applications/:id/progress]", err.message);
+    res.status(500).json({
+      error: "Failed to update progress",
       detail: process.env.NODE_ENV !== "production" ? err.message : undefined,
     });
   }
